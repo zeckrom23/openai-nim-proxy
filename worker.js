@@ -1,12 +1,12 @@
 // worker.js - OpenAI to NVIDIA NIM API Proxy (Cloudflare Workers)
 
-// 🔥 REASONING DISPLAY TOGGLE - Shows/hides reasoning in output
+// 🔥 REASONING DISPLAY TOGGLE
 const SHOW_REASONING = false;
 
 // 🔥 THINKING MODE TOGGLE
 const ENABLE_THINKING_MODE = false;
 
-// 🔥 DEFAULT FALLBACK MODEL - Used when model is not in mapping
+// 🔥 DEFAULT FALLBACK MODEL
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v3.1';
 
 // Model mapping
@@ -35,12 +35,8 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-async function resolveModel(model) {
-  // Check mapping first
-  if (MODEL_MAPPING[model]) return MODEL_MAPPING[model];
-
-  // Fallback siempre a DeepSeek
-  return DEFAULT_MODEL;
+function resolveModel(model) {
+  return MODEL_MAPPING[model] || DEFAULT_MODEL;
 }
 
 async function handleChatCompletions(request, env) {
@@ -50,13 +46,13 @@ async function handleChatCompletions(request, env) {
   const body = await request.json();
   const { model, messages, temperature, max_tokens, stream } = body;
 
-  const nimModel = await resolveModel(model);
+  const nimModel = resolveModel(model);
 
   const nimRequest = {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    max_tokens: max_tokens || 9024,
+    max_tokens: max_tokens || 4096,
     stream: stream || false,
     ...(ENABLE_THINKING_MODE && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
@@ -70,70 +66,75 @@ async function handleChatCompletions(request, env) {
     body: JSON.stringify(nimRequest)
   });
 
-  if (!nimResponse.ok && !stream) {
+  if (!nimResponse.ok) {
     const err = await nimResponse.text();
     return jsonResponse({ error: { message: err, type: 'invalid_request_error', code: nimResponse.status } }, nimResponse.status);
   }
 
   // --- STREAMING ---
   if (stream) {
-    const { readable, writable } = new TransformStream();
-    const writer = writable.getWriter();
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
+    const nimReader = nimResponse.body.getReader();
 
-    (async () => {
-      const reader = nimResponse.body.getReader();
-      let buffer = '';
-      let reasoningStarted = false;
+    const readable = new ReadableStream({
+      async start(controller) {
+        let buffer = '';
+        let reasoningStarted = false;
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        try {
+          while (true) {
+            const { done, value } = await nimReader.read();
+            if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
 
-            if (line.includes('[DONE]')) {
-              await writer.write(encoder.encode(line + '\n\n'));
-              continue;
-            }
-
-            try {
-              const data = JSON.parse(line.slice(6));
-
-              if (data.choices?.[0]?.delta) {
-                const reasoning = data.choices[0].delta.reasoning_content;
-                const content = data.choices[0].delta.content;
-
-                if (SHOW_REASONING) {
-                  let combined = '';
-                  if (reasoning && !reasoningStarted) { combined = '<think>\n' + reasoning; reasoningStarted = true; }
-                  else if (reasoning) { combined = reasoning; }
-                  if (content && reasoningStarted) { combined += '</think>\n\n' + content; reasoningStarted = false; }
-                  else if (content) { combined += content; }
-                  if (combined) data.choices[0].delta.content = combined;
-                } else {
-                  data.choices[0].delta.content = content || '';
-                }
-                delete data.choices[0].delta.reasoning_content;
+              if (line.includes('[DONE]')) {
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                continue;
               }
 
-              await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-            } catch (_) {
-              await writer.write(encoder.encode(line + '\n'));
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.choices?.[0]?.delta) {
+                  const reasoning = data.choices[0].delta.reasoning_content;
+                  const content = data.choices[0].delta.content;
+
+                  if (SHOW_REASONING) {
+                    let combined = '';
+                    if (reasoning && !reasoningStarted) { combined = '<think>\n' + reasoning; reasoningStarted = true; }
+                    else if (reasoning) { combined = reasoning; }
+                    if (content && reasoningStarted) { combined += '</think>\n\n' + content; reasoningStarted = false; }
+                    else if (content) { combined += content; }
+                    if (combined) data.choices[0].delta.content = combined;
+                  } else {
+                    data.choices[0].delta.content = content || '';
+                  }
+                  delete data.choices[0].delta.reasoning_content;
+                }
+
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+              } catch (_) {
+                controller.enqueue(encoder.encode(line + '\n'));
+              }
             }
           }
+        } catch (err) {
+          console.error('Stream error:', err);
+        } finally {
+          controller.close();
         }
-      } finally {
-        await writer.close();
+      },
+      cancel() {
+        nimReader.cancel();
       }
-    })();
+    });
 
     return new Response(readable, {
       headers: {
@@ -174,12 +175,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders() });
     }
 
-    // Routes
     if (url.pathname === '/health' && request.method === 'GET') {
       return jsonResponse({
         status: 'ok',
@@ -207,7 +206,6 @@ export default {
       }
     }
 
-    // 404 catch-all
     return jsonResponse({ error: { message: `Endpoint ${url.pathname} not found`, type: 'invalid_request_error', code: 404 } }, 404);
   }
 };
