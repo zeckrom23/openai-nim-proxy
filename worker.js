@@ -6,6 +6,9 @@ const SHOW_REASONING = false;
 // 🔥 THINKING MODE TOGGLE
 const ENABLE_THINKING_MODE = false;
 
+// 🔥 DEFAULT FALLBACK MODEL - Used when model is not in mapping
+const DEFAULT_MODEL = 'deepseek-ai/deepseek-v3.1';
+
 // Model mapping
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
@@ -32,27 +35,12 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-async function resolveModel(model, nimApiBase, nimApiKey) {
+async function resolveModel(model) {
   // Check mapping first
   if (MODEL_MAPPING[model]) return MODEL_MAPPING[model];
 
-  // Try the model directly
-  try {
-    const test = await fetch(`${nimApiBase}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${nimApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'test' }], max_tokens: 1 })
-    });
-    if (test.ok) return model;
-  } catch (_) {}
-
-  // Fallback by name heuristics
-  const lower = model.toLowerCase();
-  if (lower.includes('gpt-4') || lower.includes('claude-opus') || lower.includes('405b'))
-    return 'meta/llama-3.1-405b-instruct';
-  if (lower.includes('claude') || lower.includes('gemini') || lower.includes('70b'))
-    return 'meta/llama-3.1-70b-instruct';
-  return 'meta/llama-3.1-8b-instruct';
+  // Fallback siempre a DeepSeek
+  return DEFAULT_MODEL;
 }
 
 async function handleChatCompletions(request, env) {
@@ -62,7 +50,7 @@ async function handleChatCompletions(request, env) {
   const body = await request.json();
   const { model, messages, temperature, max_tokens, stream } = body;
 
-  const nimModel = await resolveModel(model, NIM_API_BASE, NIM_API_KEY);
+  const nimModel = await resolveModel(model);
 
   const nimRequest = {
     model: nimModel,
@@ -197,7 +185,8 @@ export default {
         status: 'ok',
         service: 'OpenAI to NVIDIA NIM Proxy',
         reasoning_display: SHOW_REASONING,
-        thinking_mode: ENABLE_THINKING_MODE
+        thinking_mode: ENABLE_THINKING_MODE,
+        default_model: DEFAULT_MODEL
       });
     }
 
