@@ -2,6 +2,7 @@ name = "openai-nim-proxy"
 main = "worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+usage_model = "unbound"
 
 # Secrets (set via CLI, NOT here):
 # npx wrangler secret put NIM_API_KEY
