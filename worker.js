@@ -9,6 +9,10 @@ const ENABLE_THINKING_MODE = false;
 // 🔥 DEFAULT FALLBACK MODEL
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v3.1';
 
+// 🔥 RETRY CONFIGURATION
+const MAX_RETRIES = 3;        // Número de intentos
+const RETRY_DELAY_MS = 1500;  // Espera entre intentos (ms)
+
 // Model mapping
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
@@ -39,6 +43,46 @@ function resolveModel(model) {
   return MODEL_MAPPING[model] || DEFAULT_MODEL;
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchNIM(nimApiBase, nimApiKey, nimRequest) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(`${nimApiBase}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${nimApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(nimRequest)
+      });
+
+      // Si responde OK o es error del cliente (4xx), no reintentar
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response;
+      }
+
+      // Error 5xx de NVIDIA — reintentar
+      lastError = `NVIDIA error ${response.status} on attempt ${attempt}`;
+      console.error(lastError);
+
+    } catch (err) {
+      lastError = `Network error on attempt ${attempt}: ${err.message}`;
+      console.error(lastError);
+    }
+
+    if (attempt < MAX_RETRIES) {
+      await sleep(RETRY_DELAY_MS);
+    }
+  }
+
+  throw new Error(`All ${MAX_RETRIES} attempts failed. Last error: ${lastError}`);
+}
+
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
   const NIM_API_KEY = env.NIM_API_KEY;
@@ -52,28 +96,19 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    // 🔥 FIX: Reducido de 4096 a 2048 para evitar timeout 524 de Cloudflare
-    max_tokens: max_tokens || 2048,
-    // 🔥 FIX: Streaming forzado siempre para mantener la conexión viva
-    stream: true,
+    max_tokens: max_tokens || 4096,
+    stream: true, // 🔥 Forzar streaming siempre
     ...(ENABLE_THINKING_MODE && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
 
-  const nimResponse = await fetch(`${NIM_API_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${NIM_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(nimRequest)
-  });
+  const nimResponse = await fetchNIM(NIM_API_BASE, NIM_API_KEY, nimRequest);
 
   if (!nimResponse.ok) {
     const err = await nimResponse.text();
     return jsonResponse({ error: { message: err, type: 'invalid_request_error', code: nimResponse.status } }, nimResponse.status);
   }
 
-  // --- STREAMING (siempre activo) ---
+  // --- STREAMING ---
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const nimReader = nimResponse.body.getReader();
@@ -161,7 +196,9 @@ export default {
         service: 'OpenAI to NVIDIA NIM Proxy',
         reasoning_display: SHOW_REASONING,
         thinking_mode: ENABLE_THINKING_MODE,
-        default_model: DEFAULT_MODEL
+        default_model: DEFAULT_MODEL,
+        max_retries: MAX_RETRIES,
+        streaming: 'forced'
       });
     }
 
