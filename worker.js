@@ -44,7 +44,7 @@ async function handleChatCompletions(request, env) {
   const NIM_API_KEY = env.NIM_API_KEY;
 
   const body = await request.json();
-  const { model, messages, temperature, max_tokens, stream } = body;
+  const { model, messages, temperature, max_tokens } = body;
 
   const nimModel = resolveModel(model);
 
@@ -52,8 +52,10 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    max_tokens: max_tokens || 4096,
-    stream: stream || false,
+    // 🔥 FIX: Reducido de 4096 a 2048 para evitar timeout 524 de Cloudflare
+    max_tokens: max_tokens || 2048,
+    // 🔥 FIX: Streaming forzado siempre para mantener la conexión viva
+    stream: true,
     ...(ENABLE_THINKING_MODE && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
 
@@ -71,104 +73,78 @@ async function handleChatCompletions(request, env) {
     return jsonResponse({ error: { message: err, type: 'invalid_request_error', code: nimResponse.status } }, nimResponse.status);
   }
 
-  // --- STREAMING ---
-  if (stream) {
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-    const nimReader = nimResponse.body.getReader();
+  // --- STREAMING (siempre activo) ---
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const nimReader = nimResponse.body.getReader();
 
-    const readable = new ReadableStream({
-      async start(controller) {
-        let buffer = '';
-        let reasoningStarted = false;
+  const readable = new ReadableStream({
+    async start(controller) {
+      let buffer = '';
+      let reasoningStarted = false;
 
-        try {
-          while (true) {
-            const { done, value } = await nimReader.read();
-            if (done) break;
+      try {
+        while (true) {
+          const { done, value } = await nimReader.read();
+          if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
 
-              if (line.includes('[DONE]')) {
-                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                continue;
-              }
+            if (line.includes('[DONE]')) {
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              continue;
+            }
 
-              try {
-                const data = JSON.parse(line.slice(6));
+            try {
+              const data = JSON.parse(line.slice(6));
 
-                if (data.choices?.[0]?.delta) {
-                  const reasoning = data.choices[0].delta.reasoning_content;
-                  const content = data.choices[0].delta.content;
+              if (data.choices?.[0]?.delta) {
+                const reasoning = data.choices[0].delta.reasoning_content;
+                const content = data.choices[0].delta.content;
 
-                  if (SHOW_REASONING) {
-                    let combined = '';
-                    if (reasoning && !reasoningStarted) { combined = '<think>\n' + reasoning; reasoningStarted = true; }
-                    else if (reasoning) { combined = reasoning; }
-                    if (content && reasoningStarted) { combined += '</think>\n\n' + content; reasoningStarted = false; }
-                    else if (content) { combined += content; }
-                    if (combined) data.choices[0].delta.content = combined;
-                  } else {
-                    data.choices[0].delta.content = content || '';
-                  }
-                  delete data.choices[0].delta.reasoning_content;
+                if (SHOW_REASONING) {
+                  let combined = '';
+                  if (reasoning && !reasoningStarted) { combined = '<think>\n' + reasoning; reasoningStarted = true; }
+                  else if (reasoning) { combined = reasoning; }
+                  if (content && reasoningStarted) { combined += '</think>\n\n' + content; reasoningStarted = false; }
+                  else if (content) { combined += content; }
+                  if (combined) data.choices[0].delta.content = combined;
+                } else {
+                  data.choices[0].delta.content = content || '';
                 }
-
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-              } catch (_) {
-                controller.enqueue(encoder.encode(line + '\n'));
+                delete data.choices[0].delta.reasoning_content;
               }
+
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+            } catch (_) {
+              controller.enqueue(encoder.encode(line + '\n'));
             }
           }
-        } catch (err) {
-          console.error('Stream error:', err);
-        } finally {
-          controller.close();
         }
-      },
-      cancel() {
-        nimReader.cancel();
+      } catch (err) {
+        console.error('Stream error:', err);
+      } finally {
+        controller.close();
       }
-    });
+    },
+    cancel() {
+      nimReader.cancel();
+    }
+  });
 
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        ...corsHeaders()
-      }
-    });
-  }
-
-  // --- NON-STREAMING ---
-  const data = await nimResponse.json();
-
-  const openaiResponse = {
-    id: `chatcmpl-${Date.now()}`,
-    object: 'chat.completion',
-    created: Math.floor(Date.now() / 1000),
-    model,
-    choices: data.choices.map(choice => {
-      let content = choice.message?.content || '';
-      if (SHOW_REASONING && choice.message?.reasoning_content) {
-        content = '<think>\n' + choice.message.reasoning_content + '\n</think>\n\n' + content;
-      }
-      return {
-        index: choice.index,
-        message: { role: choice.message.role, content },
-        finish_reason: choice.finish_reason
-      };
-    }),
-    usage: data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
-  };
-
-  return jsonResponse(openaiResponse);
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      ...corsHeaders()
+    }
+  });
 }
 
 export default {
