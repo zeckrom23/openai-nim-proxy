@@ -189,7 +189,17 @@ export default {
       });
     }
 
-    if (url.pathname === '/v1/models' && request.method === 'GET') {
+    // ✅ FIX 1: Ruta /v1 que JanitorAI usa para verificar la conexión
+    if ((url.pathname === '/v1' || url.pathname === '/v1/') && request.method === 'GET') {
+      return jsonResponse({
+        object: 'list',
+        data: [],
+        status: 'ok'
+      });
+    }
+
+    // ✅ FIX 2: Ruta /v1/models
+    if ((url.pathname === '/v1/models' || url.pathname === '/models') && request.method === 'GET') {
       return jsonResponse({
         object: 'list',
         data: Object.keys(MODEL_MAPPING).map(id => ({
@@ -198,7 +208,8 @@ export default {
       });
     }
 
-    if (url.pathname.includes('/v1/chat/completions')) {
+    // ✅ FIX 3: Acepta /chat/completions sin /v1 también
+    if ((url.pathname === '/v1/chat/completions' || url.pathname === '/chat/completions') && request.method === 'POST') {
       try {
         return await handleChatCompletions(request, env);
       } catch (err) {
