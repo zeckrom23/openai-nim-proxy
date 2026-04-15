@@ -198,7 +198,7 @@ export default {
       });
     }
 
-    if (url.pathname === '/v1/chat/completions' && request.method === 'POST') {
+    if (url.pathname.includes('/v1/chat/completions') {
       try {
         return await handleChatCompletions(request, env);
       } catch (err) {
