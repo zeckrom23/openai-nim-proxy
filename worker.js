@@ -7,14 +7,14 @@ const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
-const DEFAULT_MODEL = 'deepseek-ai/deepseek-v3';
+const DEFAULT_MODEL = 'deepseek-ai/deepseek-v3-0324';
 
 // Model mapping
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
   'gpt-4-turbo': 'moonshotai/kimi-k2-instruct-0905',
-  'gpt-4o': 'deepseek-ai/deepseek-v3',
+  'gpt-4o': 'deepseek-ai/deepseek-v3-0324',
   'claude-3-opus': 'openai/gpt-oss-120b',
   'claude-3-sonnet': 'openai/gpt-oss-20b',
   'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking'
@@ -189,16 +189,11 @@ export default {
       });
     }
 
-    // ✅ FIX 1: Ruta /v1 que JanitorAI usa para verificar la conexión
+    // ✅ FIX: /v1 y /v1/ para que JanitorAI no dé 404 al verificar conexión
     if ((url.pathname === '/v1' || url.pathname === '/v1/') && request.method === 'GET') {
-      return jsonResponse({
-        object: 'list',
-        data: [],
-        status: 'ok'
-      });
+      return jsonResponse({ object: 'list', data: [], status: 'ok' });
     }
 
-    // ✅ FIX 2: Ruta /v1/models
     if ((url.pathname === '/v1/models' || url.pathname === '/models') && request.method === 'GET') {
       return jsonResponse({
         object: 'list',
@@ -208,7 +203,6 @@ export default {
       });
     }
 
-    // ✅ FIX 3: Acepta /chat/completions sin /v1 también
     if ((url.pathname === '/v1/chat/completions' || url.pathname === '/chat/completions') && request.method === 'POST') {
       try {
         return await handleChatCompletions(request, env);
