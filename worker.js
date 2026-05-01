@@ -43,6 +43,10 @@ const MODEL_MAPPING = {
 
   // 🔥 MiniMax
   'o3-mini':           'minimaxai/minimax-m2.7',
+
+  // 🔥 GLM
+  'o3':                'z-ai/glm-5.1',
+  'o4-mini':           'z-ai/glm-4.7',
 };
 
 function corsHeaders() {
