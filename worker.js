@@ -7,17 +7,42 @@ const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
-const DEFAULT_MODEL = 'deepseek-ai/deepseek-v3.2';
+const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
 
 // Model mapping
 const MODEL_MAPPING = {
-  'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
-  'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
-  'gpt-4-turbo': 'moonshotai/kimi-k2-instruct-0905',
-  'gpt-4o': 'deepseek-ai/deepseek-v3.2',
-  'claude-3-opus': 'openai/gpt-oss-120b',
-  'claude-3-sonnet': 'openai/gpt-oss-20b',
-  'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking'
+  // 🔥 DeepSeek V4
+  'gpt-4o':            'deepseek-ai/deepseek-v4-pro',
+  'gpt-4-turbo':       'deepseek-ai/deepseek-v4-flash',
+
+  // 🔥 DeepSeek V3
+  'gpt-4':             'deepseek-ai/deepseek-v3.2',
+
+  // 🔥 Kimi K2
+  'gpt-4o-mini':       'moonshotai/kimi-k2-instruct',
+  'claude-3-opus':     'moonshotai/kimi-k2-thinking',
+
+  // 🔥 Qwen
+  'claude-3-sonnet':   'qwen/qwen3-next-80b-a3b-instruct',
+  'claude-3-haiku':    'qwen/qwen3-coder-480b-a35b-instruct',
+
+  // 🔥 OpenAI OSS
+  'gpt-3.5-turbo':     'openai/gpt-oss-120b',
+  'gpt-3.5-turbo-16k': 'openai/gpt-oss-20b',
+
+  // 🔥 Nemotron
+  'gemini-pro':        'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'gemini-flash':      'nvidia/nemotron-3-super-120b-a12b',
+
+  // 🔥 Llama 4
+  'gemini-ultra':      'meta/llama-4-maverick-17b-128e-instruct',
+
+  // 🔥 Mistral
+  'o1-mini':           'mistralai/mistral-large-3-675b-instruct-2512',
+  'o1':                'mistralai/mistral-medium-3.5-128b',
+
+  // 🔥 MiniMax
+  'o3-mini':           'minimaxai/minimax-m2.7',
 };
 
 function corsHeaders() {
@@ -189,12 +214,7 @@ export default {
       });
     }
 
-    // ✅ FIX: /v1 y /v1/ para que JanitorAI no dé 404 al verificar conexión
-    if ((url.pathname === '/v1' || url.pathname === '/v1/') && request.method === 'GET') {
-      return jsonResponse({ object: 'list', data: [], status: 'ok' });
-    }
-
-    if ((url.pathname === '/v1/models' || url.pathname === '/models') && request.method === 'GET') {
+    if (url.pathname === '/v1/models' && request.method === 'GET') {
       return jsonResponse({
         object: 'list',
         data: Object.keys(MODEL_MAPPING).map(id => ({
@@ -203,7 +223,7 @@ export default {
       });
     }
 
-    if ((url.pathname === '/v1/chat/completions' || url.pathname === '/chat/completions') && request.method === 'POST') {
+    if (url.pathname === '/v1/chat/completions' && request.method === 'POST') {
       try {
         return await handleChatCompletions(request, env);
       } catch (err) {
