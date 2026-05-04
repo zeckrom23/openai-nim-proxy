@@ -9,44 +9,66 @@ const ENABLE_THINKING_MODE = false;
 // 🔥 DEFAULT FALLBACK MODEL
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
 
-// Model mapping
+// Model mapping - Updated May 2026
 const MODEL_MAPPING = {
-  // 🔥 DeepSeek V4
-  'gpt-4o':            'deepseek-ai/deepseek-v4-pro',
-  'gpt-4-turbo':       'deepseek-ai/deepseek-v4-flash',
 
-  // 🔥 DeepSeek V3
-  'gpt-4':             'deepseek-ai/deepseek-v3.2',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 DEEPSEEK V4 - Mejor para roleplay
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-4o':             'deepseek-ai/deepseek-v4-pro',
+  'gpt-4-turbo':        'deepseek-ai/deepseek-v4-flash',
 
-  // 🔥 Kimi K2
-  'gpt-4o-mini':       'moonshotai/kimi-k2-instruct',
-  'claude-3-opus':     'moonshotai/kimi-k2-thinking',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 DEEPSEEK V3 - Backup confiable
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-4':              'deepseek-ai/deepseek-v3.2',
 
-  // 🔥 Qwen
-  'claude-3-sonnet':   'qwen/qwen3-next-80b-a3b-instruct',
-  'claude-3-haiku':    'qwen/qwen3-coder-480b-a35b-instruct',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 KIMI K2 - Muy bueno para narrativa
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-4o-mini':        'moonshotai/kimi-k2-instruct',
+  'claude-3-opus':      'moonshotai/kimi-k2-thinking',
 
-  // 🔥 OpenAI OSS
-  'gpt-3.5-turbo':     'openai/gpt-oss-120b',
-  'gpt-3.5-turbo-16k': 'openai/gpt-oss-20b',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 GLM - Bueno para NSFW
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'o3':                 'z-ai/glm-5.1',
+  'o4-mini':            'z-ai/glm-4.7',
 
-  // 🔥 Nemotron
-  'gemini-pro':        'nvidia/llama-3.1-nemotron-ultra-253b-v1',
-  'gemini-flash':      'nvidia/nemotron-3-super-120b-a12b',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 OPENAI OSS - Estable y rápido
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-3.5-turbo':      'openai/gpt-oss-120b',
+  'gpt-3.5-turbo-16k':  'openai/gpt-oss-20b',
 
-  // 🔥 Llama 4
-  'gemini-ultra':      'meta/llama-4-maverick-17b-128e-instruct',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 MISTRAL - Grande y capaz
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'o1':                 'mistralai/devstral-2-123b-instruct-2512',
+  'o1-mini':            'mistralai/mistral-large-3-675b-instruct-2512',
+  'o1-preview':         'mistralai/mistral-medium-3.5-128b',
 
-  // 🔥 Mistral
-  'o1-mini':           'mistralai/mistral-large-3-675b-instruct-2512',
-  'o1':                'mistralai/mistral-medium-3.5-128b',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 MINIMAX - Razonamiento y oficina
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'o3-mini':            'minimaxai/minimax-m2.7',
 
-  // 🔥 MiniMax
-  'o3-mini':           'minimaxai/minimax-m2.7',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 QWEN - Variedad de opciones
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'claude-3-sonnet':    'qwen/qwen3-next-80b-a3b-instruct',
+  'claude-3-haiku':     'qwen/qwen3-coder-480b-a35b-instruct',
 
-  // 🔥 GLM
-  'o3':                'z-ai/glm-5.1',
-  'o4-mini':           'z-ai/glm-4.7',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 LLAMA 4 - Nuevo de Meta
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 NEMOTRON - Backup NVIDIA nativo
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gemini-pro':         'nvidia/nemotron-3-super-120b-a12b',
+  'gemini-flash':       'nvidia/llama-3.1-nemotron-ultra-253b-v1',
 };
 
 function corsHeaders() {
@@ -214,7 +236,8 @@ export default {
         service: 'OpenAI to NVIDIA NIM Proxy',
         reasoning_display: SHOW_REASONING,
         thinking_mode: ENABLE_THINKING_MODE,
-        default_model: DEFAULT_MODEL
+        default_model: DEFAULT_MODEL,
+        total_models: Object.keys(MODEL_MAPPING).length
       });
     }
 
