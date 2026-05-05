@@ -22,6 +22,7 @@ const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V3 - Backup confiable
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4':              'deepseek-ai/deepseek-v3.2',
+  'gpt-4-5':            'deepseek-ai/deepseek-v3.1-terminus', // 🤙 El chill de la familia
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 KIMI K2 - Muy bueno para narrativa
