@@ -1,4 +1,5 @@
 // worker.js - OpenAI to NVIDIA NIM API Proxy (Cloudflare Workers)
+// ✅ Anti-524 edition — streaming forzado, timeouts, retry automático
 
 // 🔥 REASONING DISPLAY TOGGLE
 const SHOW_REASONING = false;
@@ -8,6 +9,12 @@ const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
+
+// ⏱️ TIMEOUT en ms — 29s es el máximo seguro en Cloudflare Workers free tier
+const NIM_TIMEOUT_MS = 29000;
+
+// 🔄 REINTENTOS automáticos si NIM falla (máximo recomendado: 2)
+const MAX_RETRIES = 2;
 
 // Model mapping - Updated May 2026
 const MODEL_MAPPING = {
@@ -72,6 +79,10 @@ const MODEL_MAPPING = {
   'gemini-flash':       'nvidia/llama-3.1-nemotron-ultra-253b-v1',
 };
 
+// ─────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────
+
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -91,12 +102,74 @@ function resolveModel(model) {
   return MODEL_MAPPING[model] || DEFAULT_MODEL;
 }
 
+// ✅ Fetch a NIM con timeout y reintentos automáticos
+async function fetchNIM(url, options, retriesLeft = MAX_RETRIES) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
+
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return response;
+
+  } catch (err) {
+    const isTimeout = err.name === 'AbortError';
+    const isNetworkErr = err.name === 'TypeError';
+
+    // Reintenta solo en timeout o error de red, no en errores de auth
+    if ((isTimeout || isNetworkErr) && retriesLeft > 0) {
+      console.warn(`NIM fetch failed (${err.name}), retrying... (${retriesLeft} left)`);
+      await new Promise(r => setTimeout(r, 500)); // pequeña pausa antes de reintentar
+      return fetchNIM(url, options, retriesLeft - 1);
+    }
+
+    throw err; // si ya no hay reintentos, lanza el error
+  }
+}
+
+// ✅ Consume el stream internamente y devuelve el contenido completo
+// Usado cuando el cliente pide non-streaming pero NIM siempre streamea
+async function collectStream(nimResponse) {
+  const decoder = new TextDecoder();
+  const reader = nimResponse.body.getReader();
+  let fullContent = '';
+  let fullReasoning = '';
+  let lastData = null;
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ') || line.includes('[DONE]')) continue;
+      try {
+        const data = JSON.parse(line.slice(6));
+        lastData = data;
+        fullContent += data.choices?.[0]?.delta?.content || '';
+        fullReasoning += data.choices?.[0]?.delta?.reasoning_content || '';
+      } catch (_) {}
+    }
+  }
+
+  return { fullContent, fullReasoning, lastData };
+}
+
+// ─────────────────────────────────────────
+// HANDLER PRINCIPAL
+// ─────────────────────────────────────────
+
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
   const NIM_API_KEY = env.NIM_API_KEY;
 
   const body = await request.json();
   const { model, messages, temperature, max_tokens, stream } = body;
+  const clientWantsStream = stream === true;
 
   const nimModel = resolveModel(model);
 
@@ -105,26 +178,51 @@ async function handleChatCompletions(request, env) {
     messages,
     temperature: temperature || 0.6,
     max_tokens: max_tokens || 4096,
-    stream: stream || false,
+    stream: true, // ✅ SIEMPRE stream hacia NIM — evita 524 en non-streaming
     ...(ENABLE_THINKING_MODE && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
 
-  const nimResponse = await fetch(`${NIM_API_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${NIM_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(nimRequest)
-  });
+  let nimResponse;
+  try {
+    nimResponse = await fetchNIM(`${NIM_API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NIM_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(nimRequest)
+    });
+  } catch (err) {
+    // Timeout o error de red después de todos los reintentos
+    if (err.name === 'AbortError') {
+      return jsonResponse({
+        error: {
+          message: 'NIM no respondió a tiempo. Intenta con un modelo más ligero o reintenta.',
+          type: 'timeout_error',
+          code: 524
+        }
+      }, 524);
+    }
+    return jsonResponse({
+      error: { message: `Error de red: ${err.message}`, type: 'network_error', code: 503 }
+    }, 503);
+  }
 
   if (!nimResponse.ok) {
     const err = await nimResponse.text();
-    return jsonResponse({ error: { message: err, type: 'invalid_request_error', code: nimResponse.status } }, nimResponse.status);
+    return jsonResponse({
+      error: {
+        message: `NIM Error (${nimResponse.status}): ${err}`,
+        type: 'invalid_request_error',
+        code: nimResponse.status
+      }
+    }, nimResponse.status);
   }
 
-  // --- STREAMING ---
-  if (stream) {
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STREAMING — el cliente quiere stream
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (clientWantsStream) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     const nimReader = nimResponse.body.getReader();
@@ -198,30 +296,36 @@ async function handleChatCompletions(request, env) {
     });
   }
 
-  // --- NON-STREAMING ---
-  const data = await nimResponse.json();
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // NON-STREAMING — consume el stream internamente
+  // ✅ NIM siempre streamea, aquí lo juntamos todo
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const { fullContent, fullReasoning, lastData } = await collectStream(nimResponse);
+
+  let content = fullContent;
+  if (SHOW_REASONING && fullReasoning) {
+    content = '<think>\n' + fullReasoning + '\n</think>\n\n' + content;
+  }
 
   const openaiResponse = {
     id: `chatcmpl-${Date.now()}`,
     object: 'chat.completion',
     created: Math.floor(Date.now() / 1000),
     model,
-    choices: data.choices.map(choice => {
-      let content = choice.message?.content || '';
-      if (SHOW_REASONING && choice.message?.reasoning_content) {
-        content = '<think>\n' + choice.message.reasoning_content + '\n</think>\n\n' + content;
-      }
-      return {
-        index: choice.index,
-        message: { role: choice.message.role, content },
-        finish_reason: choice.finish_reason
-      };
-    }),
-    usage: data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+    choices: [{
+      index: 0,
+      message: { role: 'assistant', content },
+      finish_reason: lastData?.choices?.[0]?.finish_reason || 'stop'
+    }],
+    usage: lastData?.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
   };
 
   return jsonResponse(openaiResponse);
 }
+
+// ─────────────────────────────────────────
+// ENTRY POINT
+// ─────────────────────────────────────────
 
 export default {
   async fetch(request, env) {
@@ -238,7 +342,9 @@ export default {
         reasoning_display: SHOW_REASONING,
         thinking_mode: ENABLE_THINKING_MODE,
         default_model: DEFAULT_MODEL,
-        total_models: Object.keys(MODEL_MAPPING).length
+        total_models: Object.keys(MODEL_MAPPING).length,
+        timeout_ms: NIM_TIMEOUT_MS,
+        max_retries: MAX_RETRIES
       });
     }
 
@@ -255,10 +361,14 @@ export default {
       try {
         return await handleChatCompletions(request, env);
       } catch (err) {
-        return jsonResponse({ error: { message: err.message || 'Internal server error', type: 'invalid_request_error', code: 500 } }, 500);
+        return jsonResponse({
+          error: { message: err.message || 'Internal server error', type: 'invalid_request_error', code: 500 }
+        }, 500);
       }
     }
 
-    return jsonResponse({ error: { message: `Endpoint ${url.pathname} not found`, type: 'invalid_request_error', code: 404 } }, 404);
+    return jsonResponse({
+      error: { message: `Endpoint ${url.pathname} not found`, type: 'invalid_request_error', code: 404 }
+    }, 404);
   }
 };
