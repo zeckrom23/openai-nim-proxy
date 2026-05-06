@@ -10,8 +10,8 @@ const ENABLE_THINKING_MODE = false;
 // 🔥 DEFAULT FALLBACK MODEL
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
 
-// ⏱️ TIMEOUT en ms — 29s es el máximo seguro en Cloudflare Workers free tier
-const NIM_TIMEOUT_MS = 29000;
+// ⏱️ TIMEOUT en ms — 44s seguro con streaming forzado en Cloudflare Workers free tier
+const NIM_TIMEOUT_MS = 44000;
 
 // 🔄 REINTENTOS automáticos si NIM falla (máximo recomendado: 2)
 const MAX_RETRIES = 2;
