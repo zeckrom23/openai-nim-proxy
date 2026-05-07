@@ -10,11 +10,11 @@ const ENABLE_THINKING_MODE = false;
 // 🔥 DEFAULT FALLBACK MODEL
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
 
-// ⏱️ TIMEOUT en ms — 44s seguro con streaming forzado en Cloudflare Workers free tier
-const NIM_TIMEOUT_MS = 44000;
+// ⏱️ TIMEOUT en ms — 90s seguro con usage_model = "unbound" activo
+const NIM_TIMEOUT_MS = 90000;
 
-// 🔄 REINTENTOS automáticos si NIM falla (máximo recomendado: 2)
-const MAX_RETRIES = 2;
+// 🔄 REINTENTOS automáticos si NIM falla — 1 es suficiente con 90s de timeout
+const MAX_RETRIES = 1;
 
 // Model mapping - Updated May 2026
 const MODEL_MAPPING = {
@@ -119,16 +119,15 @@ async function fetchNIM(url, options, retriesLeft = MAX_RETRIES) {
     // Reintenta solo en timeout o error de red, no en errores de auth
     if ((isTimeout || isNetworkErr) && retriesLeft > 0) {
       console.warn(`NIM fetch failed (${err.name}), retrying... (${retriesLeft} left)`);
-      await new Promise(r => setTimeout(r, 500)); // pequeña pausa antes de reintentar
+      await new Promise(r => setTimeout(r, 500));
       return fetchNIM(url, options, retriesLeft - 1);
     }
 
-    throw err; // si ya no hay reintentos, lanza el error
+    throw err;
   }
 }
 
 // ✅ Consume el stream internamente y devuelve el contenido completo
-// Usado cuando el cliente pide non-streaming pero NIM siempre streamea
 async function collectStream(nimResponse) {
   const decoder = new TextDecoder();
   const reader = nimResponse.body.getReader();
@@ -193,7 +192,6 @@ async function handleChatCompletions(request, env) {
       body: JSON.stringify(nimRequest)
     });
   } catch (err) {
-    // Timeout o error de red después de todos los reintentos
     if (err.name === 'AbortError') {
       return jsonResponse({
         error: {
@@ -298,7 +296,6 @@ async function handleChatCompletions(request, env) {
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // NON-STREAMING — consume el stream internamente
-  // ✅ NIM siempre streamea, aquí lo juntamos todo
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   const { fullContent, fullReasoning, lastData } = await collectStream(nimResponse);
 
