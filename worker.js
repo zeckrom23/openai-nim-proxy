@@ -102,26 +102,14 @@ function resolveModel(model) {
   return MODEL_MAPPING[model] || DEFAULT_MODEL;
 }
 
-// ✅ Fetch a NIM con timeout, reintentos automáticos y backoff para 429
-async function fetchNIM(url, options, retriesLeft = MAX_RETRIES, attempt = 0) {
+// ✅ Fetch a NIM con timeout y reintentos automáticos
+async function fetchNIM(url, options, retriesLeft = MAX_RETRIES) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
 
     const response = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timer);
-
-    // 429 Rate Limit — reintenta con backoff exponencial
-    if (response.status === 429 && retriesLeft > 0) {
-      const retryAfter = response.headers.get('Retry-After');
-      const waitMs = retryAfter
-        ? parseInt(retryAfter) * 1000          // usa el header si existe
-        : Math.min(1000 * 2 ** attempt, 8000); // backoff: 1s, 2s, 4s, max 8s
-      console.warn(`429 Rate Limit — esperando ${waitMs}ms antes de reintentar...`);
-      await new Promise(r => setTimeout(r, waitMs));
-      return fetchNIM(url, options, retriesLeft - 1, attempt + 1);
-    }
-
     return response;
 
   } catch (err) {
@@ -132,7 +120,7 @@ async function fetchNIM(url, options, retriesLeft = MAX_RETRIES, attempt = 0) {
     if ((isTimeout || isNetworkErr) && retriesLeft > 0) {
       console.warn(`NIM fetch failed (${err.name}), retrying... (${retriesLeft} left)`);
       await new Promise(r => setTimeout(r, 500));
-      return fetchNIM(url, options, retriesLeft - 1, attempt + 1);
+      return fetchNIM(url, options, retriesLeft - 1);
     }
 
     throw err;
