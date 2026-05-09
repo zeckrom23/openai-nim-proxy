@@ -16,6 +16,11 @@ const NIM_TIMEOUT_MS = 90000;
 // 🔄 REINTENTOS automáticos si NIM falla — 1 es suficiente con 90s de timeout
 const MAX_RETRIES = 1;
 
+// 🧠 THINKING BUDGET — limita tokens de razonamiento en modelos con thinking
+// Reduce drásticamente el tiempo de respuesta en Kimi 2.6 y similares
+// 0 = sin thinking (más rápido), 1024 = thinking mínimo, 10000 = thinking completo
+const THINKING_BUDGET = 0;
+
 // Model mapping - Updated May 2026
 const MODEL_MAPPING = {
 
@@ -32,10 +37,10 @@ const MODEL_MAPPING = {
   'gpt-4-5':            'deepseek-ai/deepseek-v3.1-terminus', // 🤙 El chill de la familia
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 KIMI K2 - Muy bueno para narrativa
+  // 🔥 KIMI - Muy bueno para narrativa
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o-mini':        'moonshotai/kimi-k2-instruct',
-  'claude-3-opus':      'moonshotai/kimi-k2-thinking',
+  'claude-3-opus':      'moonshotai/kimi-k2.6',           // 🆕 Kimi K2.6 — thinking controlado
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 GLM - Bueno para NSFW
@@ -79,6 +84,13 @@ const MODEL_MAPPING = {
   'gemini-flash':       'nvidia/llama-3.1-nemotron-ultra-253b-v1',
 };
 
+// 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
+const THINKING_MODELS = [
+  'moonshotai/kimi-k2.6',
+  'moonshotai/kimi-k2-thinking',
+  'qwen/qwen3-next-80b-a3b-thinking',
+];
+
 // ─────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────
@@ -116,7 +128,6 @@ async function fetchNIM(url, options, retriesLeft = MAX_RETRIES) {
     const isTimeout = err.name === 'AbortError';
     const isNetworkErr = err.name === 'TypeError';
 
-    // Reintenta solo en timeout o error de red, no en errores de auth
     if ((isTimeout || isNetworkErr) && retriesLeft > 0) {
       console.warn(`NIM fetch failed (${err.name}), retrying... (${retriesLeft} left)`);
       await new Promise(r => setTimeout(r, 500));
@@ -171,6 +182,12 @@ async function handleChatCompletions(request, env) {
   const clientWantsStream = stream === true;
 
   const nimModel = resolveModel(model);
+  const isThinkingModel = THINKING_MODELS.includes(nimModel);
+
+  // ✅ Thinking budget — apaga o limita el thinking en modelos que lo soportan
+  const thinkingExtra = isThinkingModel
+    ? { chat_template_kwargs: { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET } }
+    : undefined;
 
   const nimRequest = {
     model: nimModel,
@@ -178,7 +195,8 @@ async function handleChatCompletions(request, env) {
     temperature: temperature || 0.6,
     max_tokens: max_tokens || 4096,
     stream: true, // ✅ SIEMPRE stream hacia NIM — evita 524 en non-streaming
-    ...(ENABLE_THINKING_MODE && { extra_body: { chat_template_kwargs: { thinking: true } } })
+    ...(thinkingExtra && { extra_body: thinkingExtra }),
+    ...(ENABLE_THINKING_MODE && !isThinkingModel && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
 
   let nimResponse;
@@ -338,6 +356,7 @@ export default {
         service: 'OpenAI to NVIDIA NIM Proxy',
         reasoning_display: SHOW_REASONING,
         thinking_mode: ENABLE_THINKING_MODE,
+        thinking_budget: THINKING_BUDGET,
         default_model: DEFAULT_MODEL,
         total_models: Object.keys(MODEL_MAPPING).length,
         timeout_ms: NIM_TIMEOUT_MS,
