@@ -35,7 +35,8 @@ const MODEL_MAPPING = {
   // 🔥 KIMI K2 - Muy bueno para narrativa
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o-mini':        'moonshotai/kimi-k2-instruct',
-  'claude-3-opus':      'moonshotai/kimi-k2-thinking',
+  'claude-3-opus':      'moonshotai/kimi-k2.6
+',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 GLM - Bueno para NSFW
