@@ -129,7 +129,7 @@ function getApiKeys(env) {
 // ✅ Fetch secuencial con dos timeouts:
 // - HEADER_TIMEOUT (5s): detecta 429 rápido y pasa a la siguiente key
 // - NIM_TIMEOUT_MS (90s): timeout real solo cuando ya hay stream fluyendo
-const HEADER_TIMEOUT_MS = 5000;
+const HEADER_TIMEOUT_MS = 30000;
 
 async function fetchNIMWithRotation(url, options, apiKeys) {
   let lastStatus = null;
