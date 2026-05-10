@@ -1,5 +1,5 @@
 // worker.js - OpenAI to NVIDIA NIM API Proxy (Cloudflare Workers)
-// ✅ Anti-524 edition — streaming forzado, timeouts, retry automático
+// ✅ Anti-524 edition — streaming forzado, timeouts, rotación de keys en 429
 
 // 🔥 REASONING DISPLAY TOGGLE
 const SHOW_REASONING = false;
@@ -13,13 +13,15 @@ const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
 // ⏱️ TIMEOUT en ms — 90s seguro con usage_model = "unbound" activo
 const NIM_TIMEOUT_MS = 90000;
 
-// 🔄 REINTENTOS automáticos si NIM falla — 1 es suficiente con 90s de timeout
-const MAX_RETRIES = 1;
-
-// 🧠 THINKING BUDGET — limita tokens de razonamiento en modelos con thinking
-// Reduce drásticamente el tiempo de respuesta en Kimi 2.6 y similares
-// 0 = sin thinking (más rápido), 1024 = thinking mínimo, 10000 = thinking completo
+// 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
+
+// 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
+const THINKING_MODELS = [
+  'moonshotai/kimi-k2.6',
+  'moonshotai/kimi-k2-thinking',
+  'qwen/qwen3-next-80b-a3b-thinking',
+];
 
 // Model mapping - Updated May 2026
 const MODEL_MAPPING = {
@@ -40,7 +42,7 @@ const MODEL_MAPPING = {
   // 🔥 KIMI - Muy bueno para narrativa
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o-mini':        'moonshotai/kimi-k2-instruct',
-  'claude-3-opus':      'moonshotai/kimi-k2.6',           // 🆕 Kimi K2.6 — thinking controlado
+  'claude-3-opus':      'moonshotai/kimi-k2.6',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 GLM - Bueno para NSFW
@@ -62,7 +64,7 @@ const MODEL_MAPPING = {
   'o1-preview':         'mistralai/mistral-medium-3.5-128b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MINIMAX - Razonamiento y oficina
+  // 🔥 MINIMAX - Razonamiento
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'o3-mini':            'minimaxai/minimax-m2.7',
 
@@ -83,13 +85,6 @@ const MODEL_MAPPING = {
   'gemini-pro':         'nvidia/nemotron-3-super-120b-a12b',
   'gemini-flash':       'nvidia/llama-3.1-nemotron-ultra-253b-v1',
 };
-
-// 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
-const THINKING_MODELS = [
-  'moonshotai/kimi-k2.6',
-  'moonshotai/kimi-k2-thinking',
-  'qwen/qwen3-next-80b-a3b-thinking',
-];
 
 // ─────────────────────────────────────────
 // HELPERS
@@ -114,28 +109,79 @@ function resolveModel(model) {
   return MODEL_MAPPING[model] || DEFAULT_MODEL;
 }
 
-// ✅ Fetch a NIM con timeout y reintentos automáticos
-async function fetchNIM(url, options, retriesLeft = MAX_RETRIES) {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
+// ✅ Obtiene las keys disponibles desde env y las mezcla aleatoriamente
+function getApiKeys(env) {
+  const keys = [
+    env.NIM_API_KEY,
+    env.NIM_API_KEY_1,
+    env.NIM_API_KEY_2,
+    env.NIM_API_KEY_3,
+  ].filter(Boolean); // filtra las que no estén definidas
 
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timer);
-    return response;
-
-  } catch (err) {
-    const isTimeout = err.name === 'AbortError';
-    const isNetworkErr = err.name === 'TypeError';
-
-    if ((isTimeout || isNetworkErr) && retriesLeft > 0) {
-      console.warn(`NIM fetch failed (${err.name}), retrying... (${retriesLeft} left)`);
-      await new Promise(r => setTimeout(r, 500));
-      return fetchNIM(url, options, retriesLeft - 1);
-    }
-
-    throw err;
+  // Mezcla aleatoria para distribuir la carga
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
   }
+
+  return keys;
+}
+
+// ✅ Fetch a NIM con rotación automática de keys en 429 y timeout
+async function fetchNIMWithRotation(url, options, apiKeys) {
+  let lastError = null;
+  let lastStatus = null;
+
+  for (let i = 0; i < apiKeys.length; i++) {
+    const key = apiKeys[i];
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${key}`,
+        }
+      });
+      clearTimeout(timer);
+
+      // Si no es 429, devuelve la respuesta (ok o error distinto)
+      if (response.status !== 429) {
+        return response;
+      }
+
+      // Es 429 — registra y prueba la siguiente key
+      lastStatus = 429;
+      console.warn(`Key ${i + 1}/${apiKeys.length} got 429, trying next key...`);
+
+    } catch (err) {
+      clearTimeout && clearTimeout();
+      lastError = err;
+
+      if (err.name === 'AbortError') {
+        // Timeout — no tiene sentido rotar keys por esto, lanza directo
+        throw err;
+      }
+
+      console.warn(`Key ${i + 1}/${apiKeys.length} network error: ${err.message}, trying next...`);
+    }
+  }
+
+  // Todas las keys fallaron
+  if (lastStatus === 429) {
+    // Devuelve un 429 simulado para que JAI lo muestre
+    return new Response(JSON.stringify({
+      status: 429,
+      title: 'Too Many Requests',
+      detail: 'All API keys are rate limited. Try again in a moment.'
+    }), { status: 429 });
+  }
+
+  throw lastError || new Error('All API keys failed');
 }
 
 // ✅ Consume el stream internamente y devuelve el contenido completo
@@ -175,7 +221,6 @@ async function collectStream(nimResponse) {
 
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
-  const NIM_API_KEY = env.NIM_API_KEY;
 
   const body = await request.json();
   const { model, messages, temperature, max_tokens, stream } = body;
@@ -184,7 +229,6 @@ async function handleChatCompletions(request, env) {
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
 
-  // ✅ Thinking budget — apaga o limita el thinking en modelos que lo soportan
   const thinkingExtra = isThinkingModel
     ? { chat_template_kwargs: { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET } }
     : undefined;
@@ -194,21 +238,30 @@ async function handleChatCompletions(request, env) {
     messages,
     temperature: temperature || 0.6,
     max_tokens: max_tokens || 4096,
-    stream: true, // ✅ SIEMPRE stream hacia NIM — evita 524 en non-streaming
+    stream: true,
     ...(thinkingExtra && { extra_body: thinkingExtra }),
     ...(ENABLE_THINKING_MODE && !isThinkingModel && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
 
+  const apiKeys = getApiKeys(env);
+
+  if (apiKeys.length === 0) {
+    return jsonResponse({
+      error: { message: 'No API keys configured', type: 'auth_error', code: 401 }
+    }, 401);
+  }
+
   let nimResponse;
   try {
-    nimResponse = await fetchNIM(`${NIM_API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${NIM_API_KEY}`,
-        'Content-Type': 'application/json'
+    nimResponse = await fetchNIMWithRotation(
+      `${NIM_API_BASE}/chat/completions`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nimRequest)
       },
-      body: JSON.stringify(nimRequest)
-    });
+      apiKeys
+    );
   } catch (err) {
     if (err.name === 'AbortError') {
       return jsonResponse({
@@ -236,7 +289,7 @@ async function handleChatCompletions(request, env) {
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STREAMING — el cliente quiere stream
+  // STREAMING
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (clientWantsStream) {
     const encoder = new TextEncoder();
@@ -313,7 +366,7 @@ async function handleChatCompletions(request, env) {
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // NON-STREAMING — consume el stream internamente
+  // NON-STREAMING
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   const { fullContent, fullReasoning, lastData } = await collectStream(nimResponse);
 
@@ -360,7 +413,7 @@ export default {
         default_model: DEFAULT_MODEL,
         total_models: Object.keys(MODEL_MAPPING).length,
         timeout_ms: NIM_TIMEOUT_MS,
-        max_retries: MAX_RETRIES
+        api_keys_configured: ['NIM_API_KEY', 'NIM_API_KEY_1', 'NIM_API_KEY_2', 'NIM_API_KEY_3']
       });
     }
 
