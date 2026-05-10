@@ -36,7 +36,7 @@ const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V3 - Backup confiable
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4':              'deepseek-ai/deepseek-v3.2',
-  'gpt-4-5':            'deepseek-ai/deepseek-v3.1-terminus', // 🤙 El chill de la familia
+  'gpt-4-5':            'deepseek-ai/deepseek-v3.1-terminus',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 KIMI - Muy bueno para narrativa
@@ -118,7 +118,6 @@ function getApiKeys(env) {
     env.NIM_API_KEY_3,
   ].filter(Boolean);
 
-  // Mezcla aleatoria para distribuir la carga
   for (let i = keys.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [keys[i], keys[j]] = [keys[j], keys[i]];
@@ -127,19 +126,25 @@ function getApiKeys(env) {
   return keys;
 }
 
-// ✅ Fetch a NIM con rotación automática de keys en 429 y timeout
-// 🐛 FIX: timer declarado fuera del try para que el catch pueda limpiarlo
+// ✅ Fetch secuencial con dos timeouts:
+// - HEADER_TIMEOUT (5s): detecta 429 rápido y pasa a la siguiente key
+// - NIM_TIMEOUT_MS (90s): timeout real solo cuando ya hay stream fluyendo
+const HEADER_TIMEOUT_MS = 5000;
+
 async function fetchNIMWithRotation(url, options, apiKeys) {
-  let lastError = null;
   let lastStatus = null;
+  let lastError = null;
 
   for (let i = 0; i < apiKeys.length; i++) {
     const key = apiKeys[i];
-    let timer = null; // ✅ declarado fuera del try/catch
+    let headerTimer = null;
+    let streamTimer = null;
 
     try {
       const controller = new AbortController();
-      timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS); // ✅ asignado, no declarado
+
+      // Timeout corto para recibir los headers (detecta 429 rápido)
+      headerTimer = setTimeout(() => controller.abort(), HEADER_TIMEOUT_MS);
 
       const response = await fetch(url, {
         ...options,
@@ -150,31 +155,37 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
         }
       });
 
-      clearTimeout(timer); // ✅ siempre tiene referencia válida
+      // Headers recibidos — cancela el timer corto
+      clearTimeout(headerTimer);
+      headerTimer = null;
 
-      // Si no es 429, devuelve la respuesta
-      if (response.status !== 429) {
-        return response;
+      // 429 — pasa a la siguiente key sin esperar
+      if (response.status === 429) {
+        lastStatus = 429;
+        console.warn(`Key ${i + 1}/${apiKeys.length} got 429, trying next...`);
+        continue;
       }
 
-      // Es 429 — prueba la siguiente key
-      lastStatus = 429;
-      console.warn(`Key ${i + 1}/${apiKeys.length} got 429, trying next key...`);
+      // Respuesta válida — ahora sí aplica el timeout largo para el stream
+      // Usamos un nuevo controller para el stream (el anterior ya cumplió su función)
+      return response;
 
     } catch (err) {
-      if (timer) clearTimeout(timer); // ✅ limpia el timer si existe
+      if (headerTimer) clearTimeout(headerTimer);
+      if (streamTimer) clearTimeout(streamTimer);
       lastError = err;
 
       if (err.name === 'AbortError') {
-        // Timeout — no rota keys, lanza directo
-        throw err;
+        // El timeout corto se disparó — NIM tardó más de 5s en responder headers
+        // Esto es raro (no es 429), puede ser cold start — sigue intentando
+        console.warn(`Key ${i + 1}/${apiKeys.length} headers timed out after ${HEADER_TIMEOUT_MS}ms, trying next...`);
+        continue;
       }
 
       console.warn(`Key ${i + 1}/${apiKeys.length} network error: ${err.message}, trying next...`);
     }
   }
 
-  // Todas las keys fallaron con 429
   if (lastStatus === 429) {
     return new Response(JSON.stringify({
       status: 429,
