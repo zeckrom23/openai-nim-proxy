@@ -116,7 +116,7 @@ function getApiKeys(env) {
     env.NIM_API_KEY_1,
     env.NIM_API_KEY_2,
     env.NIM_API_KEY_3,
-  ].filter(Boolean); // filtra las que no estén definidas
+  ].filter(Boolean);
 
   // Mezcla aleatoria para distribuir la carga
   for (let i = keys.length - 1; i > 0; i--) {
@@ -128,16 +128,18 @@ function getApiKeys(env) {
 }
 
 // ✅ Fetch a NIM con rotación automática de keys en 429 y timeout
+// 🐛 FIX: timer declarado fuera del try para que el catch pueda limpiarlo
 async function fetchNIMWithRotation(url, options, apiKeys) {
   let lastError = null;
   let lastStatus = null;
 
   for (let i = 0; i < apiKeys.length; i++) {
     const key = apiKeys[i];
+    let timer = null; // ✅ declarado fuera del try/catch
 
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
+      timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS); // ✅ asignado, no declarado
 
       const response = await fetch(url, {
         ...options,
@@ -147,23 +149,24 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
           'Authorization': `Bearer ${key}`,
         }
       });
-      clearTimeout(timer);
 
-      // Si no es 429, devuelve la respuesta (ok o error distinto)
+      clearTimeout(timer); // ✅ siempre tiene referencia válida
+
+      // Si no es 429, devuelve la respuesta
       if (response.status !== 429) {
         return response;
       }
 
-      // Es 429 — registra y prueba la siguiente key
+      // Es 429 — prueba la siguiente key
       lastStatus = 429;
       console.warn(`Key ${i + 1}/${apiKeys.length} got 429, trying next key...`);
 
     } catch (err) {
-      clearTimeout && clearTimeout();
+      if (timer) clearTimeout(timer); // ✅ limpia el timer si existe
       lastError = err;
 
       if (err.name === 'AbortError') {
-        // Timeout — no tiene sentido rotar keys por esto, lanza directo
+        // Timeout — no rota keys, lanza directo
         throw err;
       }
 
@@ -171,9 +174,8 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
     }
   }
 
-  // Todas las keys fallaron
+  // Todas las keys fallaron con 429
   if (lastStatus === 429) {
-    // Devuelve un 429 simulado para que JAI lo muestre
     return new Response(JSON.stringify({
       status: 429,
       title: 'Too Many Requests',
@@ -238,7 +240,7 @@ async function handleChatCompletions(request, env) {
     messages,
     temperature: temperature || 0.6,
     max_tokens: max_tokens || 4096,
-    stream: true,
+    stream: true, // ✅ SIEMPRE stream hacia NIM — evita 524
     ...(thinkingExtra && { extra_body: thinkingExtra }),
     ...(ENABLE_THINKING_MODE && !isThinkingModel && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
