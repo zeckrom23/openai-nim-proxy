@@ -1,5 +1,5 @@
 // worker.js - OpenAI to NVIDIA NIM API Proxy (Cloudflare Workers)
-// ✅ Anti-524 edition — streaming forzado, timeouts, rotación de keys en 429
+// ✅ Anti-524 edition — streaming forzado, timeouts, rotación de keys en 429, keepalive
 
 // 🔥 REASONING DISPLAY TOGGLE
 const SHOW_REASONING = false;
@@ -15,6 +15,9 @@ const NIM_TIMEOUT_MS = 90000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
+
+// 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
+const KEEPALIVE_INTERVAL_MS = 15000;
 
 // 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
 const THINKING_MODELS = [
@@ -126,9 +129,7 @@ function getApiKeys(env) {
   return keys;
 }
 
-// ✅ Fetch secuencial con dos timeouts:
-// - HEADER_TIMEOUT (5s): detecta 429 rápido y pasa a la siguiente key
-// - NIM_TIMEOUT_MS (90s): timeout real solo cuando ya hay stream fluyendo
+// ✅ Fetch con rotación de keys en 429
 const HEADER_TIMEOUT_MS = 30000;
 
 async function fetchNIMWithRotation(url, options, apiKeys) {
@@ -138,12 +139,9 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
   for (let i = 0; i < apiKeys.length; i++) {
     const key = apiKeys[i];
     let headerTimer = null;
-    let streamTimer = null;
 
     try {
       const controller = new AbortController();
-
-      // Timeout corto para recibir los headers (detecta 429 rápido)
       headerTimer = setTimeout(() => controller.abort(), HEADER_TIMEOUT_MS);
 
       const response = await fetch(url, {
@@ -155,29 +153,22 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
         }
       });
 
-      // Headers recibidos — cancela el timer corto
       clearTimeout(headerTimer);
       headerTimer = null;
 
-      // 429 — pasa a la siguiente key sin esperar
       if (response.status === 429) {
         lastStatus = 429;
         console.warn(`Key ${i + 1}/${apiKeys.length} got 429, trying next...`);
         continue;
       }
 
-      // Respuesta válida — ahora sí aplica el timeout largo para el stream
-      // Usamos un nuevo controller para el stream (el anterior ya cumplió su función)
       return response;
 
     } catch (err) {
       if (headerTimer) clearTimeout(headerTimer);
-      if (streamTimer) clearTimeout(streamTimer);
       lastError = err;
 
       if (err.name === 'AbortError') {
-        // El timeout corto se disparó — NIM tardó más de 5s en responder headers
-        // Esto es raro (no es 429), puede ser cold start — sigue intentando
         console.warn(`Key ${i + 1}/${apiKeys.length} headers timed out after ${HEADER_TIMEOUT_MS}ms, trying next...`);
         continue;
       }
@@ -251,7 +242,7 @@ async function handleChatCompletions(request, env) {
     messages,
     temperature: temperature || 0.6,
     max_tokens: max_tokens || 4096,
-    stream: true, // ✅ SIEMPRE stream hacia NIM — evita 524
+    stream: true,
     ...(thinkingExtra && { extra_body: thinkingExtra }),
     ...(ENABLE_THINKING_MODE && !isThinkingModel && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
@@ -302,7 +293,7 @@ async function handleChatCompletions(request, env) {
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STREAMING
+  // STREAMING con keepalive anti-524
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (clientWantsStream) {
     const encoder = new TextEncoder();
@@ -313,6 +304,13 @@ async function handleChatCompletions(request, env) {
       async start(controller) {
         let buffer = '';
         let reasoningStarted = false;
+
+        // 💓 Keepalive — manda comentarios SSE invisibles para evitar 524
+        const keepalive = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(': keepalive\n\n'));
+          } catch (_) {}
+        }, KEEPALIVE_INTERVAL_MS);
 
         try {
           while (true) {
@@ -360,6 +358,7 @@ async function handleChatCompletions(request, env) {
         } catch (err) {
           console.error('Stream error:', err);
         } finally {
+          clearInterval(keepalive);
           controller.close();
         }
       },
@@ -426,6 +425,7 @@ export default {
         default_model: DEFAULT_MODEL,
         total_models: Object.keys(MODEL_MAPPING).length,
         timeout_ms: NIM_TIMEOUT_MS,
+        keepalive_interval_ms: KEEPALIVE_INTERVAL_MS,
         api_keys_configured: ['NIM_API_KEY', 'NIM_API_KEY_1', 'NIM_API_KEY_2', 'NIM_API_KEY_3']
       });
     }
