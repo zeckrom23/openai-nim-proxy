@@ -130,7 +130,7 @@ function getApiKeys(env) {
 }
 
 // ✅ Fetch con rotación de keys en 429
-const HEADER_TIMEOUT_MS = 30000;
+const HEADER_TIMEOUT_MS = 60000;
 
 async function fetchNIMWithRotation(url, options, apiKeys) {
   let lastStatus = null;
