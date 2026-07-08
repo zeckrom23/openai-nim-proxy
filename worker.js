@@ -21,12 +21,11 @@ const KEEPALIVE_INTERVAL_MS = 15000;
 
 // 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
 const THINKING_MODELS = [
-  'moonshotai/kimi-k2.6',
-  'moonshotai/kimi-k2-thinking',
+  'bytedance/seed-oss-36b-instruct',
   'qwen/qwen3-next-80b-a3b-thinking',
 ];
 
-// Model mapping - Updated May 2026
+// Model mapping - Updated July 2026
 const MODEL_MAPPING = {
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -36,21 +35,15 @@ const MODEL_MAPPING = {
   'gpt-4-turbo':        'deepseek-ai/deepseek-v4-flash',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 DEEPSEEK V3 - Backup confiable
+  // 🔥 RESPALDOS QWEN 3.5 - Sustitutos estables de V3
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gpt-4':              'deepseek-ai/deepseek-v3.2',
-  'gpt-4-5':            'deepseek-ai/deepseek-v3.1-terminus',
+  'gpt-4':              'qwen/qwen3-next-80b-a3b-instruct',
+  'gpt-4-5':            'qwen/qwen3.5-122b-a10b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 KIMI - Muy bueno para narrativa
+  // 🔥 GLM - Bueno para NSFW (Actualizados)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gpt-4o-mini':        'moonshotai/kimi-k2-instruct',
-  'claude-3-opus':      'moonshotai/kimi-k2.6',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 GLM - Bueno para NSFW
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o3':                 'z-ai/glm-5.1',
+  'o3':                 'z-ai/glm-5.2',
   'o4-mini':            'z-ai/glm-4.7',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -60,22 +53,22 @@ const MODEL_MAPPING = {
   'gpt-3.5-turbo-16k':  'openai/gpt-oss-20b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MISTRAL - Grande y capaz
+  // 🔥 MISTRAL & QWEN ULTRA - Grande y capaz
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o1':                 'mistralai/devstral-2-123b-instruct-2512',
+  'o1':                 'qwen/qwen3.5-397b-a17b',
   'o1-mini':            'mistralai/mistral-large-3-675b-instruct-2512',
   'o1-preview':         'mistralai/mistral-medium-3.5-128b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MINIMAX - Razonamiento
+  // 🔥 SEED - Razonamiento
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o3-mini':            'minimaxai/minimax-m2.7',
+  'o3-mini':            'bytedance/seed-oss-36b-instruct',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 QWEN - Variedad de opciones
+  // 🔥 MISTRAL SMALL - Variedad de opciones / Escudos anti-524
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'claude-3-sonnet':    'qwen/qwen3-next-80b-a3b-instruct',
-  'claude-3-haiku':     'qwen/qwen3-coder-480b-a35b-instruct',
+  'claude-3-sonnet':    'mistralai/mistral-small-4-119b-2603',
+  'claude-3-haiku':     'mistralai/ministral-14b-instruct-2512',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 LLAMA 4 - Nuevo de Meta
@@ -86,7 +79,7 @@ const MODEL_MAPPING = {
   // 🔥 NEMOTRON - Backup NVIDIA nativo
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gemini-pro':         'nvidia/nemotron-3-super-120b-a12b',
-  'gemini-flash':       'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'gemini-flash':       'nvidia/llama-3.3-nemotron-super-49b-v1.5',
 };
 
 // ─────────────────────────────────────────
