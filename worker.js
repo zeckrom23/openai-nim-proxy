@@ -23,63 +23,70 @@ const KEEPALIVE_INTERVAL_MS = 15000;
 const THINKING_MODELS = [
   'bytedance/seed-oss-36b-instruct',
   'qwen/qwen3-next-80b-a3b-thinking',
+  'nvidia/nvidia-nemotron-nano-9b-v2',
 ];
 
 // Model mapping - Updated July 2026
 const MODEL_MAPPING = {
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 DEEPSEEK V4 - Mejor para roleplay
+  // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o':             'deepseek-ai/deepseek-v4-pro',
   'gpt-4-turbo':        'deepseek-ai/deepseek-v4-flash',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 RESPALDOS QWEN 3.5 - Sustitutos estables de V3
+  // 🔥 GLM 5.2 - NSFW sin formato pésimo (mejorado vs 5.1)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gpt-4':              'qwen/qwen3-next-80b-a3b-instruct',
-  'gpt-4-5':            'qwen/qwen3.5-122b-a10b',
+  'gpt-4':              'z-ai/glm-5.2',
+  'gpt-4-5':            'z-ai/glm-4.7',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 GLM - Bueno para NSFW (Actualizados)
+  // 🔥 MINIMAX M3 - Nuevo, potente, vale la pena probar
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o3':                 'z-ai/glm-5.2',
-  'o4-mini':            'z-ai/glm-4.7',
+  'gpt-4o-mini':        'minimaxai/minimax-m3',
+  'claude-3-opus':      'minimaxai/minimax-m2.7',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 OPENAI OSS - Estable y rápido
+  // 🔥 OPENAI OSS - Estable cuando todo lo demás falla
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-3.5-turbo':      'openai/gpt-oss-120b',
   'gpt-3.5-turbo-16k':  'openai/gpt-oss-20b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MISTRAL & QWEN ULTRA - Grande y capaz
+  // 🔥 STEPFUN - Grande, agentic, nuevo y sin probar para roleplay
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o1':                 'qwen/qwen3.5-397b-a17b',
-  'o1-mini':            'mistralai/mistral-large-3-675b-instruct-2512',
-  'o1-preview':         'mistralai/mistral-medium-3.5-128b',
+  'o1':                 'stepfun-ai/step-3.5-flash',
+  'o1-mini':            'stepfun-ai/step-3.7-flash',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 SEED - Razonamiento
+  // 🔥 MISTRAL - Parcialmente censurado pero estable
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o3-mini':            'bytedance/seed-oss-36b-instruct',
+  'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
+  'o3-mini':            'mistralai/mistral-medium-3.5-128b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MISTRAL SMALL - Variedad de opciones / Escudos anti-524
+  // 🔥 QWEN - Variedad, MoE grandes
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'claude-3-sonnet':    'mistralai/mistral-small-4-119b-2603',
-  'claude-3-haiku':     'mistralai/ministral-14b-instruct-2512',
+  'claude-3-sonnet':    'qwen/qwen3.5-397b-a17b',
+  'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 LLAMA 4 - Nuevo de Meta
+  // 🔥 NEMOTRON ULTRA - El monstruo de 550B
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'o3':                 'nvidia/nemotron-3-ultra-550b-a55b',
+  'o4-mini':            'nvidia/nemotron-3-super-120b-a12b',
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 LLAMA 4 + SEED - Alternativas de Meta y ByteDance
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
+  'gemini-pro':         'bytedance/seed-oss-36b-instruct',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 NEMOTRON - Backup NVIDIA nativo
+  // 🔥 GEMMA 4 - Google, nuevo y capaz
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gemini-pro':         'nvidia/nemotron-3-super-120b-a12b',
-  'gemini-flash':       'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+  'gemini-flash':       'google/gemma-4-31b-it',
 };
 
 // ─────────────────────────────────────────
