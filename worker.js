@@ -8,7 +8,7 @@ const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
-const DEFAULT_MODEL = 'z-ai/glm-5.2';
+const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
 
 // ⏱️ TIMEOUT en ms — 90s seguro con usage_model = "unbound" activo
 const NIM_TIMEOUT_MS = 90000;
@@ -21,99 +21,72 @@ const KEEPALIVE_INTERVAL_MS = 15000;
 
 // 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
 const THINKING_MODELS = [
-'openai/gpt-oss-120b',
-'moonshotai/kimi-k2.6',
-'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+  'bytedance/seed-oss-36b-instruct',
+  'qwen/qwen3-next-80b-a3b-thinking',
+  'nvidia/nvidia-nemotron-nano-9b-v2',
 ];
 
-// Model mapping - Roleplay optimized August 2026
-
+// Model mapping - Updated July 2026
 const MODEL_MAPPING = {
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 GLM 5.2 - DEFAULT PRINCIPAL
-// Personalidad + obediencia + roleplay
-// NSFW/RP: ⭐⭐⭐⭐⭐
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-4o':             'deepseek-ai/deepseek-v4-pro',
+  'gpt-4-turbo':        'deepseek-ai/deepseek-v4-flash',
 
-'gpt-4':              'z-ai/glm-5.2',
-'gpt-4-5':            'z-ai/glm-5.2',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 GLM 5.2 - NSFW sin formato pésimo (mejorado vs 5.1)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-4':              'z-ai/glm-5.2',
+  'gpt-4-5':            'z-ai/glm-4.7',
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 MINIMAX M3 - Nuevo, potente, vale la pena probar
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-4o-mini':        'minimaxai/minimax-m3',
+  'claude-3-opus':      'minimaxai/minimax-m2.7',
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 GPT OSS 120B
-// Escenas complejas y narrativa profunda
-// NSFW/RP: ⭐⭐⭐⭐⭐
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 OPENAI OSS - Estable cuando todo lo demás falla
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gpt-3.5-turbo':      'openai/gpt-oss-120b',
+  'gpt-3.5-turbo-16k':  'openai/gpt-oss-20b',
 
-'gpt-4o':             'openai/gpt-oss-120b',
-'gpt-4-turbo':        'openai/gpt-oss-120b',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 STEPFUN - Grande, agentic, nuevo y sin probar para roleplay
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'o1':                 'stepfun-ai/step-3.5-flash',
+  'o1-mini':            'stepfun-ai/step-3.7-flash',
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 MISTRAL - Parcialmente censurado pero estable
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
+  'o3-mini':            'mistralai/mistral-medium-3.5-128b',
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 KIMI K2.6
-// Contexto largo y conversaciones extensas
-// NSFW/RP: ⭐⭐⭐⭐⭐
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 QWEN - Variedad, MoE grandes
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'claude-3-sonnet':    'qwen/qwen3.5-397b-a17b',
+  'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
 
-'claude-3-opus':      'moonshotai/kimi-k2.6',
-'claude-3-sonnet':    'moonshotai/kimi-k2.6',
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 NEMOTRON ULTRA - El monstruo de 550B
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'o3':                 'nvidia/nemotron-3-ultra-550b-a55b',
+  'o4-mini':            'nvidia/nemotron-3-super-120b-a12b',
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 LLAMA 4 + SEED - Alternativas de Meta y ByteDance
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
+  'gemini-pro':         'bytedance/seed-oss-36b-instruct',
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 PALMYRA CREATIVE 122B
-// Escritura creativa
-// NSFW/RP: ⭐⭐⭐⭐⭐
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-'o1':                 'writer/palmyra-creative-122b',
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 LLAMA 3.3 70B
-// Balance general
-// NSFW/RP: ⭐⭐⭐⭐☆
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-'o1-mini':            'meta/llama-3.3-70b-instruct',
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 NEMOTRON SUPER
-// Razonamiento + consistencia
-// NSFW/RP: ⭐⭐⭐⭐☆
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-'o3':                 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 MISTRAL LARGE 2
-// Creatividad estable
-// NSFW/RP: ⭐⭐⭐⭐☆
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-'o3-mini':            'mistralai/mistral-large-2-instruct',
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 MINIMAX M3
-// Conversación natural
-// NSFW/RP: ⭐⭐⭐⭐☆
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-'gpt-4o-mini':        'minimaxai/minimax-m3',
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 🔥 FALLBACKS
-// Velocidad / menor consumo
-// NSFW/RP: ⭐⭐⭐☆☆
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-'gpt-3.5-turbo':      'google/gemma-3-12b-it',
-'gpt-3.5-turbo-16k':  'meta/llama-3.1-70b-instruct',
-
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 GEMMA 4 - Google, nuevo y capaz
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  'gemini-flash':       'google/gemma-4-31b-it',
 };
 
 // ─────────────────────────────────────────
