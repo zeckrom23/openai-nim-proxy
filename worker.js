@@ -21,7 +21,6 @@ const KEEPALIVE_INTERVAL_MS = 15000;
 
 // 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
 const THINKING_MODELS = [
-'z-ai/glm-5.2',
 'openai/gpt-oss-120b',
 'moonshotai/kimi-k2.6',
 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
