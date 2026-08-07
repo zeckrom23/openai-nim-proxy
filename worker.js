@@ -8,7 +8,7 @@ const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
-const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro';
+const DEFAULT_MODEL = 'z-ai/glm-5.2';
 
 // ⏱️ TIMEOUT en ms — 90s seguro con usage_model = "unbound" activo
 const NIM_TIMEOUT_MS = 90000;
