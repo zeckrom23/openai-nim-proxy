@@ -21,9 +21,10 @@ const KEEPALIVE_INTERVAL_MS = 15000;
 
 // 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
 const THINKING_MODELS = [
-  'bytedance/seed-oss-36b-instruct',
-  'qwen/qwen3-next-80b-a3b-thinking',
-  'nvidia/nvidia-nemotron-nano-9b-v2',
+'z-ai/glm-5.2',
+'openai/gpt-oss-120b',
+'moonshotai/kimi-k2.6',
+'nvidia/llama-3.3-nemotron-super-49b-v1.5',
 ];
 
 // Model mapping - Updated July 2026
