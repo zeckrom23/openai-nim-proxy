@@ -26,7 +26,13 @@ const THINKING_MODELS = [
   'nvidia/nvidia-nemotron-nano-9b-v2',
 ];
 
-// Model mapping - Updated July 2026
+// 🧠 Modelos MiniMax que necesitan chat_template_kwargs directo (no en extra_body)
+const MINIMAX_MODELS = [
+  'minimaxai/minimax-m3',
+  'minimaxai/minimax-m2.7',
+];
+
+// Model mapping - Updated August 2026
 const MODEL_MAPPING = {
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -36,13 +42,13 @@ const MODEL_MAPPING = {
   'gpt-4-turbo':        'deepseek-ai/deepseek-v4-flash',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 GLM 5.2 - NSFW sin formato pésimo (mejorado vs 5.1)
+  // 🔥 GLM 5.2 - NSFW sin formato pésimo
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4':              'z-ai/glm-5.2',
   'gpt-4-5':            'z-ai/glm-4.7',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MINIMAX M3 - Nuevo, potente, vale la pena probar
+  // 🔥 MINIMAX - Bueno para roleplay
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o-mini':        'minimaxai/minimax-m3',
   'claude-3-opus':      'minimaxai/minimax-m2.7',
@@ -54,7 +60,7 @@ const MODEL_MAPPING = {
   'gpt-3.5-turbo-16k':  'openai/gpt-oss-20b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 STEPFUN - Grande, agentic, nuevo y sin probar para roleplay
+  // 🔥 STEPFUN - Grande, agentic
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'o1':                 'stepfun-ai/step-3.5-flash',
   'o1-mini':            'stepfun-ai/step-3.7-flash',
@@ -78,13 +84,13 @@ const MODEL_MAPPING = {
   'o4-mini':            'nvidia/nemotron-3-super-120b-a12b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 LLAMA 4 + SEED - Alternativas de Meta y ByteDance
+  // 🔥 LLAMA 4 + SEED
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
   'gemini-pro':         'bytedance/seed-oss-36b-instruct',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 GEMMA 4 - Google, nuevo y capaz
+  // 🔥 GEMMA 4 - Google
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gemini-flash':       'google/gemma-4-31b-it',
 };
@@ -232,7 +238,10 @@ async function handleChatCompletions(request, env) {
 
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
+  const isMinimaxModel = MINIMAX_MODELS.includes(nimModel);
 
+  // ✅ MiniMax necesita chat_template_kwargs directo en el payload
+  // ✅ Otros thinking models lo necesitan en extra_body
   const thinkingExtra = isThinkingModel
     ? { chat_template_kwargs: { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET } }
     : undefined;
@@ -243,8 +252,11 @@ async function handleChatCompletions(request, env) {
     temperature: temperature || 0.6,
     max_tokens: max_tokens || 4096,
     stream: true,
-    ...(thinkingExtra && { extra_body: thinkingExtra }),
-    ...(ENABLE_THINKING_MODE && !isThinkingModel && { extra_body: { chat_template_kwargs: { thinking: true } } })
+    // ✅ MiniMax: thinking_mode directo en el payload
+    ...(isMinimaxModel && { chat_template_kwargs: { thinking_mode: 'disabled' } }),
+    // ✅ Otros thinking models: en extra_body
+    ...(thinkingExtra && !isMinimaxModel && { extra_body: thinkingExtra }),
+    ...(ENABLE_THINKING_MODE && !isThinkingModel && !isMinimaxModel && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
 
   const apiKeys = getApiKeys(env);
