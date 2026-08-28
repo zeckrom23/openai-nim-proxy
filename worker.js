@@ -51,7 +51,7 @@ const MODEL_MAPPING = {
   // 🔥 MINIMAX - Bueno para roleplay
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o-mini':        'minimaxai/minimax-m3',
-  'claude-3-opus':      'minimaxai/minimax-m2.7',
+  'claude-3-opus':   'moonshotai/kimi-k3',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 OPENAI OSS - Estable cuando todo lo demás falla
