@@ -38,7 +38,7 @@ const MODEL_MAPPING = {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gpt-4o':             'deepseek-ai/deepseek-v4-pro',
+  'gpt-4o':             'deepseek-ai/deepseek-v4-pro-0813',
   'gpt-4-turbo':        'deepseek-ai/deepseek-v4-flash',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
