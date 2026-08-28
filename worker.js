@@ -39,13 +39,7 @@ const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o':             'deepseek-ai/deepseek-v4-pro-0813',
-  'gpt-4-turbo':        'deepseek-ai/deepseek-v4-flash',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 GLM 5.2 - NSFW sin formato pésimo
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4':              'deepseek-ai/deepseek-v4-flash-0731',
-  'gpt-4-5':            'z-ai/glm-4.7',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 MINIMAX - Bueno para roleplay
