@@ -58,7 +58,7 @@ const MODEL_MAPPING = {
   // 🔥 Respaldos
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-3.5-turbo':      'poolside/laguna-xs-2.1',
-  'gpt-3.5-turbo-16k':  'nvidia/nemotron-3.5-lightning-30b-a3b',
+  'gpt-3.5-turbo-16k':  'openai/gpt-oss-20b',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 STEPFUN - Grande, agentic
