@@ -64,7 +64,7 @@ const MODEL_MAPPING = {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 STEPFUN - Grande, agentic
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o1':                 'nvidia/nemotron-3-ultra-550b-a55b',
+  'o1':                 'google/diffusiongemma-26b-a4b-it',
   'o1-mini':            'stepfun-ai/step-3.7-flash',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
