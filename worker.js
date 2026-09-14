@@ -42,16 +42,16 @@ const MODEL_MAPPING = {
   'gpt-4':              'deepseek-ai/deepseek-v4-flash-0731',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MINIMAX - Bueno para roleplay
+  // 🔥 MINIMAX & Kimi- Bueno para roleplay
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o-mini':        'minimaxai/minimax-m3',
   'claude-3-opus':   'moonshotai/kimi-k3',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 OPENAI OSS - Estable cuando todo lo demás falla
+  // 🔥 Respaldos
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gpt-3.5-turbo':      'openai/gpt-oss-120b',
-  'gpt-3.5-turbo-16k':  'openai/gpt-oss-20b',
+  'gpt-3.5-turbo':      'poolside/laguna-xs-2.1',
+  'gpt-3.5-turbo-16k':  'thinkingmachines/inkling',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 STEPFUN - Grande, agentic
