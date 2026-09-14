@@ -24,6 +24,7 @@ const THINKING_MODELS = [
   'bytedance/seed-oss-36b-instruct',
   'qwen/qwen3-next-80b-a3b-thinking',
   'nvidia/nvidia-nemotron-nano-9b-v2',
+  'nvidia/nemotron-3.5-lightning-30b-a3b',
 ];
 
 // 🧠 Modelos MiniMax que necesitan chat_template_kwargs directo (no en extra_body)
