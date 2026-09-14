@@ -19,10 +19,17 @@ const THINKING_BUDGET = 0;
 // 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
 const KEEPALIVE_INTERVAL_MS = 15000;
 
-// 🧠 Modelos con thinking que se benefician del THINKING_BUDGET
+// 🧠 Modelos genéricos con thinking que aceptan extra_body
 const THINKING_MODELS = [
   'bytedance/seed-oss-36b-instruct',
   'qwen/qwen3-next-80b-a3b-thinking',
+];
+
+// 🧠 Modelos Nemotron que necesitan chat_template_kwargs directo en la raíz (NO en extra_body)
+const NEMOTRON_MODELS = [
+  'nvidia/nemotron-3.5-lightning-30b-a3b',
+  'nvidia/nemotron-3-ultra-550b-a55b',
+  'nvidia/nemotron-3-super-120b-a12b',
   'nvidia/nvidia-nemotron-nano-9b-v2',
 ];
 
@@ -30,7 +37,6 @@ const THINKING_MODELS = [
 const MINIMAX_MODELS = [
   'minimaxai/minimax-m3',
   'minimaxai/minimax-m2.7',
-  'nvidia/nemotron-3.5-lightning-30b-a3b',
 ];
 
 // Model mapping - Updated August 2026
@@ -46,7 +52,7 @@ const MODEL_MAPPING = {
   // 🔥 MINIMAX & Kimi- Bueno para roleplay
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o-mini':        'minimaxai/minimax-m3',
-  'claude-3-opus':   'moonshotai/kimi-k3',
+  'claude-3-opus':      'moonshotai/kimi-k3',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 Respaldos
@@ -233,13 +239,8 @@ async function handleChatCompletions(request, env) {
 
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
+  const isNemotronModel = NEMOTRON_MODELS.includes(nimModel);
   const isMinimaxModel = MINIMAX_MODELS.includes(nimModel);
-
-  // ✅ MiniMax necesita chat_template_kwargs directo en el payload
-  // ✅ Otros thinking models lo necesitan en extra_body
-  const thinkingExtra = isThinkingModel
-    ? { chat_template_kwargs: { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET } }
-    : undefined;
 
   const nimRequest = {
     model: nimModel,
@@ -247,12 +248,26 @@ async function handleChatCompletions(request, env) {
     temperature: temperature || 0.6,
     max_tokens: max_tokens || 4096,
     stream: true,
-    // ✅ MiniMax: thinking_mode directo en el payload
-    ...(isMinimaxModel && { chat_template_kwargs: { thinking_mode: 'disabled' } }),
-    // ✅ Otros thinking models: en extra_body
-    ...(thinkingExtra && !isMinimaxModel && { extra_body: thinkingExtra }),
-    ...(ENABLE_THINKING_MODE && !isThinkingModel && !isMinimaxModel && { extra_body: { chat_template_kwargs: { thinking: true } } })
   };
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Configuración de chat_template_kwargs por familia
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (isMinimaxModel) {
+    nimRequest.chat_template_kwargs = { thinking_mode: 'disabled' };
+  } else if (isNemotronModel) {
+    // ✅ Nemotron: directo en la raíz para evitar error 400 por extra_body
+    nimRequest.chat_template_kwargs = {
+      thinking: THINKING_BUDGET > 0,
+      budget_tokens: THINKING_BUDGET
+    };
+  } else if (isThinkingModel) {
+    nimRequest.extra_body = {
+      chat_template_kwargs: { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET }
+    };
+  } else if (ENABLE_THINKING_MODE) {
+    nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
+  }
 
   const apiKeys = getApiKeys(env);
 
