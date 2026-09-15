@@ -58,8 +58,8 @@ const MODEL_MAPPING = {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 Respaldos
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gpt-3.5-turbo':      'z-ai/glm-5-3',
-  'gpt-3.5-turbo-16k':  'z-ai/glm-5-3',
+  'gpt-3.5-turbo':      'z-ai/glm-5.3',
+  'gpt-3.5-turbo-16k':  'z-ai/glm-5.3',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 STEPFUN - Grande, agentic
