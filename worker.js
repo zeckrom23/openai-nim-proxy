@@ -1,17 +1,18 @@
 // worker.js - OpenAI to NVIDIA NIM API Proxy (Cloudflare Workers)
 // ✅ Anti-524 edition — streaming forzado, timeouts, rotación de keys en 429, keepalive
+// ✅ v2 — fallback global para apagar "thinking mode" en modelos no listados (fix de latencia)
 
 // 🔥 REASONING DISPLAY TOGGLE
 const SHOW_REASONING = false;
 
-// 🔥 THINKING MODE TOGGLE
+// 🔥 THINKING MODE TOGGLE (default global, para modelos NO listados abajo)
 const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-flash-0731';
 
-// ⏱️ TIMEOUT en ms — 90s seguro con usage_model = "unbound" activo
-const NIM_TIMEOUT_MS = 90000;
+// ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
+const HEADER_TIMEOUT_MS = 60000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
@@ -19,7 +20,10 @@ const THINKING_BUDGET = 0;
 // 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
 const KEEPALIVE_INTERVAL_MS = 15000;
 
-// 🧠 Modelos genéricos con thinking que aceptan extra_body
+// 🎚️ MAX TOKENS default — bajarlo reduce tiempo de generación en modelos lentos
+const DEFAULT_MAX_TOKENS = 2048;
+
+// 🧠 Modelos genéricos con thinking que aceptan extra_body.chat_template_kwargs
 const THINKING_MODELS = [
   'bytedance/seed-oss-36b-instruct',
   'qwen/qwen3-next-80b-a3b-thinking',
@@ -33,7 +37,7 @@ const NEMOTRON_MODELS = [
   'nvidia/nvidia-nemotron-nano-9b-v2',
 ];
 
-// 🧠 Modelos MiniMax que necesitan chat_template_kwargs directo (no en extra_body)
+// 🧠 Modelos MiniMax / gpt-oss que necesitan chat_template_kwargs directo (no en extra_body)
 const MINIMAX_MODELS = [
   'minimaxai/minimax-m3',
   'minimaxai/minimax-m2.7',
@@ -42,59 +46,34 @@ const MINIMAX_MODELS = [
 
 // Model mapping - Updated August 2026
 const MODEL_MAPPING = {
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gpt-4o':             'deepseek-ai/deepseek-v4-pro-0813',
   'gpt-4':              'deepseek-ai/deepseek-v4-flash-0731',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 MINIMAX & Kimi- Bueno para roleplay
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 🔥 MINIMAX & Kimi - Bueno para roleplay
   'gpt-4o-mini':        'minimaxai/minimax-m3',
   'claude-3-opus':      'moonshotai/kimi-k3',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 Respaldos
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 MISTRAL - Parcialmente censurado pero estable
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
   'o3-mini':            'mistralai/mistral-medium-3.5-128b',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 QWEN - Variedad, MoE grandes
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'claude-3-sonnet':    'qwen/qwen3.5-397b-a17b',
   'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 NEMOTRON ULTRA - El monstruo de 550B
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'o3':                 'nvidia/nemotron-3-ultra-550b-a55b',
   'o4-mini':            'nvidia/nemotron-3-super-120b-a12b',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 LLAMA 4 + SEED
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
   'gemini-pro':         'bytedance/seed-oss-36b-instruct',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 GEMMA 4 - Google
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   'gemini-flash':       'google/gemma-4-31b-it',
 };
 
 // ─────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────
-
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -122,30 +101,23 @@ function getApiKeys(env) {
     env.NIM_API_KEY_2,
     env.NIM_API_KEY_3,
   ].filter(Boolean);
-
   for (let i = keys.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [keys[i], keys[j]] = [keys[j], keys[i]];
   }
-
   return keys;
 }
 
-// ✅ Fetch con rotación de keys en 429
-const HEADER_TIMEOUT_MS = 60000;
-
+// ✅ Fetch con rotación de keys en 429 (timeout solo cubre espera de headers/TTFB)
 async function fetchNIMWithRotation(url, options, apiKeys) {
   let lastStatus = null;
   let lastError = null;
-
   for (let i = 0; i < apiKeys.length; i++) {
     const key = apiKeys[i];
     let headerTimer = null;
-
     try {
       const controller = new AbortController();
       headerTimer = setTimeout(() => controller.abort(), HEADER_TIMEOUT_MS);
-
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
@@ -154,31 +126,24 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
           'Authorization': `Bearer ${key}`,
         }
       });
-
       clearTimeout(headerTimer);
       headerTimer = null;
-
       if (response.status === 429) {
         lastStatus = 429;
         console.warn(`Key ${i + 1}/${apiKeys.length} got 429, trying next...`);
         continue;
       }
-
       return response;
-
     } catch (err) {
       if (headerTimer) clearTimeout(headerTimer);
       lastError = err;
-
       if (err.name === 'AbortError') {
         console.warn(`Key ${i + 1}/${apiKeys.length} headers timed out after ${HEADER_TIMEOUT_MS}ms, trying next...`);
         continue;
       }
-
       console.warn(`Key ${i + 1}/${apiKeys.length} network error: ${err.message}, trying next...`);
     }
   }
-
   if (lastStatus === 429) {
     return new Response(JSON.stringify({
       status: 429,
@@ -186,11 +151,10 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
       detail: 'All API keys are rate limited. Try again in a moment.'
     }), { status: 429 });
   }
-
   throw lastError || new Error('All API keys failed');
 }
 
-// ✅ Consume el stream internamente y devuelve el contenido completo
+// ✅ Consume el stream internamente y devuelve el contenido completo (para clientes non-stream)
 async function collectStream(nimResponse) {
   const decoder = new TextDecoder();
   const reader = nimResponse.body.getReader();
@@ -198,15 +162,12 @@ async function collectStream(nimResponse) {
   let fullReasoning = '';
   let lastData = null;
   let buffer = '';
-
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
-
     for (const line of lines) {
       if (!line.startsWith('data: ') || line.includes('[DONE]')) continue;
       try {
@@ -217,21 +178,17 @@ async function collectStream(nimResponse) {
       } catch (_) {}
     }
   }
-
   return { fullContent, fullReasoning, lastData };
 }
 
 // ─────────────────────────────────────────
 // HANDLER PRINCIPAL
 // ─────────────────────────────────────────
-
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
-
   const body = await request.json();
   const { model, messages, temperature, max_tokens, stream } = body;
   const clientWantsStream = stream === true;
-
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
   const isNemotronModel = NEMOTRON_MODELS.includes(nimModel);
@@ -241,7 +198,7 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    max_tokens: max_tokens || 4096,
+    max_tokens: max_tokens || DEFAULT_MAX_TOKENS,
     stream: true,
   };
 
@@ -262,10 +219,20 @@ async function handleChatCompletions(request, env) {
     };
   } else if (ENABLE_THINKING_MODE) {
     nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
+  } else {
+    // ✅ FIX: antes, cualquier modelo fuera de las 3 listas (deepseek-v4, glm-5.3,
+    // qwen3.5, mistral, llama-4, gemma-4...) no recibía NINGÚN chat_template_kwargs,
+    // así que corría con el default del servidor — que en varias familias viene
+    // con "thinking" prendido de fábrica. Eso hace que el modelo genere tokens de
+    // razonamiento completos (lento) que luego se descartan porque SHOW_REASONING
+    // es false. Mandamos thinking:false como default seguro; si el modelo no
+    // reconoce la clave, la ignora sin romper el request.
+    nimRequest.extra_body = {
+      chat_template_kwargs: { thinking: false }
+    };
   }
 
   const apiKeys = getApiKeys(env);
-
   if (apiKeys.length === 0) {
     return jsonResponse({
       error: { message: 'No API keys configured', type: 'auth_error', code: 401 }
@@ -316,43 +283,34 @@ async function handleChatCompletions(request, env) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     const nimReader = nimResponse.body.getReader();
-
     const readable = new ReadableStream({
       async start(controller) {
         let buffer = '';
         let reasoningStarted = false;
-
         // 💓 Keepalive — manda comentarios SSE invisibles para evitar 524
         const keepalive = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(': keepalive\n\n'));
           } catch (_) {}
         }, KEEPALIVE_INTERVAL_MS);
-
         try {
           while (true) {
             const { done, value } = await nimReader.read();
             if (done) break;
-
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
-
             for (const line of lines) {
               if (!line.startsWith('data: ')) continue;
-
               if (line.includes('[DONE]')) {
                 controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                 continue;
               }
-
               try {
                 const data = JSON.parse(line.slice(6));
-
                 if (data.choices?.[0]?.delta) {
                   const reasoning = data.choices[0].delta.reasoning_content;
                   const content = data.choices[0].delta.content;
-
                   if (SHOW_REASONING) {
                     let combined = '';
                     if (reasoning && !reasoningStarted) { combined = '<think>\n' + reasoning; reasoningStarted = true; }
@@ -365,7 +323,6 @@ async function handleChatCompletions(request, env) {
                   }
                   delete data.choices[0].delta.reasoning_content;
                 }
-
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
               } catch (_) {
                 controller.enqueue(encoder.encode(line + '\n'));
@@ -398,12 +355,10 @@ async function handleChatCompletions(request, env) {
   // NON-STREAMING
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   const { fullContent, fullReasoning, lastData } = await collectStream(nimResponse);
-
   let content = fullContent;
   if (SHOW_REASONING && fullReasoning) {
     content = '<think>\n' + fullReasoning + '\n</think>\n\n' + content;
   }
-
   const openaiResponse = {
     id: `chatcmpl-${Date.now()}`,
     object: 'chat.completion',
@@ -416,37 +371,33 @@ async function handleChatCompletions(request, env) {
     }],
     usage: lastData?.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
   };
-
   return jsonResponse(openaiResponse);
 }
 
 // ─────────────────────────────────────────
 // ENTRY POINT
 // ─────────────────────────────────────────
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders() });
     }
-
     if (url.pathname === '/health' && request.method === 'GET') {
       return jsonResponse({
         status: 'ok',
         service: 'OpenAI to NVIDIA NIM Proxy',
         reasoning_display: SHOW_REASONING,
-        thinking_mode: ENABLE_THINKING_MODE,
+        thinking_mode_default: ENABLE_THINKING_MODE,
         thinking_budget: THINKING_BUDGET,
         default_model: DEFAULT_MODEL,
+        default_max_tokens: DEFAULT_MAX_TOKENS,
         total_models: Object.keys(MODEL_MAPPING).length,
-        timeout_ms: NIM_TIMEOUT_MS,
+        header_timeout_ms: HEADER_TIMEOUT_MS,
         keepalive_interval_ms: KEEPALIVE_INTERVAL_MS,
         api_keys_configured: ['NIM_API_KEY', 'NIM_API_KEY_1', 'NIM_API_KEY_2', 'NIM_API_KEY_3']
       });
     }
-
     if (url.pathname === '/v1/models' && request.method === 'GET') {
       return jsonResponse({
         object: 'list',
@@ -455,7 +406,6 @@ export default {
         }))
       });
     }
-
     if (url.pathname === '/v1/chat/completions' && request.method === 'POST') {
       try {
         return await handleChatCompletions(request, env);
@@ -465,7 +415,6 @@ export default {
         }, 500);
       }
     }
-
     return jsonResponse({
       error: { message: `Endpoint ${url.pathname} not found`, type: 'invalid_request_error', code: 404 }
     }, 404);
