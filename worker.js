@@ -214,22 +214,24 @@ async function handleChatCompletions(request, env) {
       budget_tokens: THINKING_BUDGET
     };
   } else if (isThinkingModel) {
-    nimRequest.extra_body = {
-      chat_template_kwargs: { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET }
-    };
+    // ✅ FIX: `extra_body` NO es un campo real de la REST API de NIM — es una
+    // convención del SDK de Python/Node de OpenAI que el cliente desempaqueta
+    // antes de mandar el request. Como aquí armamos el JSON a mano, hay que
+    // mandar chat_template_kwargs directo en la raíz (igual que Nemotron/Minimax),
+    // si no NIM lo rechaza con 400 "Unsupported parameter(s): extra_body".
+    nimRequest.chat_template_kwargs = { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET };
   } else if (ENABLE_THINKING_MODE) {
-    nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
+    nimRequest.chat_template_kwargs = { thinking: true };
   } else {
     // ✅ FIX: antes, cualquier modelo fuera de las 3 listas (deepseek-v4, glm-5.3,
     // qwen3.5, mistral, llama-4, gemma-4...) no recibía NINGÚN chat_template_kwargs,
     // así que corría con el default del servidor — que en varias familias viene
     // con "thinking" prendido de fábrica. Eso hace que el modelo genere tokens de
     // razonamiento completos (lento) que luego se descartan porque SHOW_REASONING
-    // es false. Mandamos thinking:false como default seguro; si el modelo no
-    // reconoce la clave, la ignora sin romper el request.
-    nimRequest.extra_body = {
-      chat_template_kwargs: { thinking: false }
-    };
+    // es false. Mandamos thinking:false como default seguro, directo en la raíz
+    // (no en extra_body — ver nota arriba). Si el modelo no reconoce la clave,
+    // el chat template normalmente la ignora sin romper el request.
+    nimRequest.chat_template_kwargs = { thinking: false };
   }
 
   const apiKeys = getApiKeys(env);
