@@ -58,14 +58,8 @@ const MODEL_MAPPING = {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 Respaldos
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'gpt-3.5-flash':      'z-ai/glm-5-3-flash',
-  'gpt-3.5-turbo-16k':  'z-ai/glm-5.3',
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 🔥 STEPFUN - Grande, agentic
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  'o1':                 'google/diffusiongemma-26b-a4b-it',
-  'o1-mini':            'stepfun-ai/step-3.7-flash',
+  'o1':                 'z-ai/glm-5.3',
+  'o1-mini':            'z-ai/glm-5.3-flash',
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 🔥 MISTRAL - Parcialmente censurado pero estable
