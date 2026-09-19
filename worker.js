@@ -12,7 +12,7 @@ const ENABLE_THINKING_MODE = false;
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-flash-0731';
 
 // ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
-const HEADER_TIMEOUT_MS = 60000;
+const HEADER_TIMEOUT_MS = 15000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
