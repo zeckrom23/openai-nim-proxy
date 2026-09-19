@@ -20,6 +20,9 @@ const THINKING_BUDGET = 0;
 // 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
 const KEEPALIVE_INTERVAL_MS = 15000;
 
+// 🎚️ MAX TOKENS default — bajarlo reduce tiempo de generación en modelos lentos
+const DEFAULT_MAX_TOKENS = 4096;
+
 // 🧠 Modelos genéricos con thinking que aceptan extra_body.chat_template_kwargs
 const THINKING_MODELS = [
   'bytedance/seed-oss-36b-instruct',
