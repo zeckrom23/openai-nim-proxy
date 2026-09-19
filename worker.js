@@ -12,16 +12,17 @@ const ENABLE_THINKING_MODE = false;
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-flash-0731';
 
 // ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
-const HEADER_TIMEOUT_MS = 15000;
+// ✅ FIX: estaba en 60000 (60s) — si la primera key elegida al azar estaba
+// atascada/saturada, te comías el minuto ENTERO antes de intentar la siguiente
+// key. Bajado a 10s: si NIM no manda headers en 10s con esa key, se asume
+// atascada y se rota a la siguiente de inmediato.
+const HEADER_TIMEOUT_MS = 10000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
 
 // 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
 const KEEPALIVE_INTERVAL_MS = 15000;
-
-// 🎚️ MAX TOKENS default — bajarlo reduce tiempo de generación en modelos lentos
-const DEFAULT_MAX_TOKENS = 4096;
 
 // 🧠 Modelos genéricos con thinking que aceptan extra_body.chat_template_kwargs
 const THINKING_MODELS = [
@@ -45,6 +46,8 @@ const MINIMAX_MODELS = [
 ];
 
 // Model mapping - Updated August 2026
+// ✅ Solo los modelos que uso activamente. Los demás quedan comentados abajo
+// para reactivarlos rápido cuando salga algo nuevo o quiera probar otro.
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
   'gpt-4o':             'deepseek-ai/deepseek-v4-pro-0813',
@@ -55,20 +58,22 @@ const MODEL_MAPPING = {
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
+
+  // ── Sin usar por ahora, descomenta para activar ──
   // 🔥 MISTRAL - Parcialmente censurado pero estable
-  'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
-  'o3-mini':            'mistralai/mistral-medium-3.5-128b',
+  // 'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
+  // 'o3-mini':            'mistralai/mistral-medium-3.5-128b',
   // 🔥 QWEN - Variedad, MoE grandes
-  'claude-3-sonnet':    'qwen/qwen3.5-397b-a17b',
-  'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
+  // 'claude-3-sonnet':    'qwen/qwen3.5-397b-a17b',
+  // 'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
   // 🔥 NEMOTRON ULTRA - El monstruo de 550B
-  'o3':                 'nvidia/nemotron-3-ultra-550b-a55b',
-  'o4-mini':            'nvidia/nemotron-3-super-120b-a12b',
+  // 'o3':                 'nvidia/nemotron-3-ultra-550b-a55b',
+  // 'o4-mini':            'nvidia/nemotron-3-super-120b-a12b',
   // 🔥 LLAMA 4 + SEED
-  'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
-  'gemini-pro':         'bytedance/seed-oss-36b-instruct',
+  // 'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
+  // 'gemini-pro':         'bytedance/seed-oss-36b-instruct',
   // 🔥 GEMMA 4 - Google
-  'gemini-flash':       'google/gemma-4-31b-it',
+  // 'gemini-flash':       'google/gemma-4-31b-it',
 };
 
 // ─────────────────────────────────────────
@@ -115,6 +120,7 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
   for (let i = 0; i < apiKeys.length; i++) {
     const key = apiKeys[i];
     let headerTimer = null;
+    const attemptStart = Date.now();
     try {
       const controller = new AbortController();
       headerTimer = setTimeout(() => controller.abort(), HEADER_TIMEOUT_MS);
@@ -128,6 +134,7 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
       });
       clearTimeout(headerTimer);
       headerTimer = null;
+      console.log(`Key ${i + 1}/${apiKeys.length}: headers en ${Date.now() - attemptStart}ms, status ${response.status}`);
       if (response.status === 429) {
         lastStatus = 429;
         console.warn(`Key ${i + 1}/${apiKeys.length} got 429, trying next...`);
@@ -138,10 +145,10 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
       if (headerTimer) clearTimeout(headerTimer);
       lastError = err;
       if (err.name === 'AbortError') {
-        console.warn(`Key ${i + 1}/${apiKeys.length} headers timed out after ${HEADER_TIMEOUT_MS}ms, trying next...`);
+        console.warn(`Key ${i + 1}/${apiKeys.length} headers timed out after ${Date.now() - attemptStart}ms, trying next...`);
         continue;
       }
-      console.warn(`Key ${i + 1}/${apiKeys.length} network error: ${err.message}, trying next...`);
+      console.warn(`Key ${i + 1}/${apiKeys.length} network error after ${Date.now() - attemptStart}ms: ${err.message}, trying next...`);
     }
   }
   if (lastStatus === 429) {
@@ -395,7 +402,6 @@ export default {
         thinking_mode_default: ENABLE_THINKING_MODE,
         thinking_budget: THINKING_BUDGET,
         default_model: DEFAULT_MODEL,
-        default_max_tokens: DEFAULT_MAX_TOKENS,
         total_models: Object.keys(MODEL_MAPPING).length,
         header_timeout_ms: HEADER_TIMEOUT_MS,
         keepalive_interval_ms: KEEPALIVE_INTERVAL_MS,
