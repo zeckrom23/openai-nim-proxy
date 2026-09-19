@@ -20,6 +20,8 @@ const THINKING_BUDGET = 0;
 // 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
 const KEEPALIVE_INTERVAL_MS = 15000;
 
+// 🎚️ MAX TOKENS default — bajarlo reduce tiempo de generación en modelos lentos
+const DEFAULT_MAX_TOKENS = 4096;
 
 // 🧠 Modelos genéricos con thinking que aceptan extra_body.chat_template_kwargs
 const THINKING_MODELS = [
@@ -196,7 +198,9 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    max_tokens: max_tokens || DEFAULT_MAX_TOKENS,
+    // ✅ Si el cliente no manda max_tokens (o manda 0 = "infinito" en JanitorAI),
+    // no forzamos ningún límite — dejamos que NIM use su propio default.
+    ...(max_tokens ? { max_tokens } : {}),
     stream: true,
   };
 
