@@ -51,11 +51,18 @@ const MINIMAX_MODELS = [
 // para reactivarlos rápido cuando salga algo nuevo o quiera probar otro.
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
+  // ✅ v4-pro-0813 se deprecó y aún no existe v4.1-pro (DeepSeek confirmó que
+  // sigue en desarrollo, sin fecha). Mientras tanto DeepSeek está redirigiendo
+  // TODAS las peticiones a "Pro" hacia v4.1-flash por detrás — así que apuntamos
+  // gpt-4o directo ahí también, en vez de a un Pro que ya no existe.
   'gpt-4o':             'deepseek-ai/deepseek-v4.1-flash',
   'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
   // 🔥 MINIMAX & Kimi - Bueno para roleplay
   'gpt-4o-mini':        'minimaxai/minimax-m3',
   'claude-3-opus':      'moonshotai/kimi-k3',
+  // ✅ Kimi más ligero (1T total / 32B activos, vs ~2.8T de kimi-k3) — mismo
+  // estilo bueno para roleplay pero con mucha menos probabilidad de saturarse.
+  'claude-3-sonnet':    'moonshotai/kimi-k2-instruct-0905',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
@@ -66,7 +73,6 @@ const MODEL_MAPPING = {
   // 🔥 MISTRAL - Parcialmente censurado pero estable
   // 'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
   // 🔥 QWEN - Variedad, MoE grandes
-  // 'claude-3-sonnet':    'qwen/qwen3.5-397b-a17b',
   // 'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
   // 🔥 NEMOTRON ULTRA - El monstruo de 550B
   // 'o3':                 'nvidia/nemotron-3-ultra-550b-a55b',
@@ -196,7 +202,7 @@ async function collectStream(nimResponse) {
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
   const body = await request.json();
-  const { model, messages, temperature, max_tokens, stream } = body;
+  const { model, messages, temperature, max_tokens, stream, stop } = body;
   const clientWantsStream = stream === true;
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
@@ -207,6 +213,11 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
+    // ✅ FIX: antes NUNCA se reenviaba `stop` — si JanitorAI manda secuencias
+    // de corte (ej. "\n{{user}}:") para evitar que el modelo hable por el
+    // usuario, se estaban tirando a la basura. Esto puede ser la causa real
+    // de que los modelos "hablen por ti".
+    ...(stop ? { stop } : {}),
     // ✅ Si el cliente no manda max_tokens (o manda 0 = "infinito" en JanitorAI),
     // no forzamos ningún límite — dejamos que NIM use su propio default.
     ...(max_tokens ? { max_tokens } : {}),
