@@ -51,7 +51,7 @@ const MINIMAX_MODELS = [
 // para reactivarlos rápido cuando salga algo nuevo o quiera probar otro.
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
-  'gpt-4o':             'deepseek-ai/deepseek-v4-pro-0813',
+  'gpt-4o':             'deepseek-ai/deepseek-v4.1-flash',
   'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
   // 🔥 MINIMAX & Kimi - Bueno para roleplay
   'gpt-4o-mini':        'minimaxai/minimax-m3',
