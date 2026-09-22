@@ -9,7 +9,8 @@ const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
-const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-flash-0731';
+// ✅ Actualizado: deepseek-v4-flash-0731 se deprecó, ahora usa el sucesor v4.1
+const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 
 // ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
 // ✅ FIX: estaba en 60000 (60s) — si la primera key elegida al azar estaba
@@ -51,18 +52,19 @@ const MINIMAX_MODELS = [
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
   'gpt-4o':             'deepseek-ai/deepseek-v4-pro-0813',
-  'gpt-4':              'deepseek-ai/deepseek-v4-flash-0731',
+  'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
   // 🔥 MINIMAX & Kimi - Bueno para roleplay
   'gpt-4o-mini':        'minimaxai/minimax-m3',
   'claude-3-opus':      'moonshotai/kimi-k3',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
+  // 🔥 NEMOTRON LIGHTNING - El más rápido del catálogo, buen respaldo si otros se saturan
+  'o3-mini':            'nvidia/nemotron-3.5-lightning-30b-a3b',
 
   // ── Sin usar por ahora, descomenta para activar ──
   // 🔥 MISTRAL - Parcialmente censurado pero estable
   // 'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
-  // 'o3-mini':            'mistralai/mistral-medium-3.5-128b',
   // 🔥 QWEN - Variedad, MoE grandes
   // 'claude-3-sonnet':    'qwen/qwen3.5-397b-a17b',
   // 'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
