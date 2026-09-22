@@ -23,7 +23,7 @@ const HEADER_TIMEOUT_MS = 10000;
 const THINKING_BUDGET = 0;
 
 // 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
-const KEEPALIVE_INTERVAL_MS = 15000;
+const KEEPALIVE_INTERVAL_MS = 30000;
 
 // 🧠 Modelos genéricos con thinking que aceptan extra_body.chat_template_kwargs
 const THINKING_MODELS = [
