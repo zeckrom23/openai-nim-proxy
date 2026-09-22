@@ -17,7 +17,7 @@ const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 // atascada/saturada, te comías el minuto ENTERO antes de intentar la siguiente
 // key. Bajado a 10s: si NIM no manda headers en 10s con esa key, se asume
 // atascada y se rota a la siguiente de inmediato.
-const HEADER_TIMEOUT_MS = 30000;
+const HEADER_TIMEOUT_MS = 60000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
