@@ -17,13 +17,13 @@ const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 // atascada/saturada, te comías el minuto ENTERO antes de intentar la siguiente
 // key. Bajado a 10s: si NIM no manda headers en 10s con esa key, se asume
 // atascada y se rota a la siguiente de inmediato.
-const HEADER_TIMEOUT_MS = 10000;
+const HEADER_TIMEOUT_MS = 30000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
 
 // 💓 KEEPALIVE — manda comentarios SSE invisibles cada N ms para evitar 524
-const KEEPALIVE_INTERVAL_MS = 30000;
+const KEEPALIVE_INTERVAL_MS = 15000;
 
 // 🧠 Modelos genéricos con thinking que aceptan extra_body.chat_template_kwargs
 const THINKING_MODELS = [
