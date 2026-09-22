@@ -57,12 +57,14 @@ const MODEL_MAPPING = {
   // gpt-4o directo ahí también, en vez de a un Pro que ya no existe.
   'gpt-4o':             'deepseek-ai/deepseek-v4.1-flash',
   'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
-  // 🔥 MINIMAX & Kimi - Bueno para roleplay
-  'gpt-4o-mini':        'minimaxai/minimax-m3',
+  // 🔥 Writer & Kimi - Bueno para roleplay
+  // ❌ minimaxai/minimax-m3 NO existe en tu cuenta de NIM (confirmado con
+  // /v1/models) — lo cambié por palmyra-creative, hecho para escritura creativa.
+  'gpt-4o-mini':        'writer/palmyra-creative-122b',
   'claude-3-opus':      'moonshotai/kimi-k3',
-  // ✅ Kimi más ligero (1T total / 32B activos, vs ~2.8T de kimi-k3) — mismo
-  // estilo bueno para roleplay pero con mucha menos probabilidad de saturarse.
-  'claude-3-sonnet':    'moonshotai/kimi-k2-instruct-0905',
+  // ✅ kimi-k2-instruct-0905 no existe en tu cuenta, pero kimi-k2.6 sí — este
+  // es tu Kimi ligero real, confirmado en /v1/models.
+  'claude-3-sonnet':    'moonshotai/kimi-k2.6',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
