@@ -13,11 +13,13 @@ const ENABLE_THINKING_MODE = false;
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 
 // ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
-// ✅ FIX: estaba en 60000 (60s) — si la primera key elegida al azar estaba
-// atascada/saturada, te comías el minuto ENTERO antes de intentar la siguiente
-// key. Bajado a 10s: si NIM no manda headers en 10s con esa key, se asume
-// atascada y se rota a la siguiente de inmediato.
-const HEADER_TIMEOUT_MS = 60000;
+// ✅ FIX v2: 10s resultó DEMASIADO agresivo — modelos grandes (kimi-k3 2.8T,
+// glm-5.3) normalmente tardan 10+ segundos en TTFB por su tamaño, nada que
+// ver con estar atascados. Con 10s se estaban abortando conexiones sanas,
+// rotando las 4 keys y agotándolas todas → 524 en TODOS los modelos grandes.
+// 25s es punto medio: suficiente para prefill normal de modelos grandes,
+// sin volver a los 60s que comían un minuto entero por key atascada real.
+const HEADER_TIMEOUT_MS = 25000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
@@ -204,7 +206,7 @@ async function collectStream(nimResponse) {
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
   const body = await request.json();
-  const { model, messages, temperature, max_tokens, stream, stop } = body;
+  const { model, messages, temperature, max_tokens, stream, stop, top_p, frequency_penalty, presence_penalty } = body;
   const clientWantsStream = stream === true;
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
@@ -215,10 +217,13 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    // ✅ FIX: antes NUNCA se reenviaba `stop` — si JanitorAI manda secuencias
-    // de corte (ej. "\n{{user}}:") para evitar que el modelo hable por el
-    // usuario, se estaban tirando a la basura. Esto puede ser la causa real
-    // de que los modelos "hablen por ti".
+    // ✅ FIX: mismo bug que `stop` — JanitorAI manda estos para controlar
+    // repetición (evitar loops tipo "!!!!!!!!"), y se estaban descartando.
+    // Sin esto, el modelo corre con los defaults crudos de NIM, más propenso
+    // a colapsar en repetición bajo carga alta.
+    ...(top_p !== undefined ? { top_p } : {}),
+    ...(frequency_penalty !== undefined ? { frequency_penalty } : {}),
+    ...(presence_penalty !== undefined ? { presence_penalty } : {}),
     ...(stop ? { stop } : {}),
     // ✅ Si el cliente no manda max_tokens (o manda 0 = "infinito" en JanitorAI),
     // no forzamos ningún límite — dejamos que NIM use su propio default.
