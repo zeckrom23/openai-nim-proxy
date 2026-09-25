@@ -206,7 +206,7 @@ async function collectStream(nimResponse) {
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
   const body = await request.json();
-  const { model, messages, temperature, max_tokens, stream, stop, top_p, frequency_penalty, presence_penalty } = body;
+  const { model, messages, temperature, max_tokens, stream } = body;
   const clientWantsStream = stream === true;
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
@@ -217,14 +217,6 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    // ✅ FIX: mismo bug que `stop` — JanitorAI manda estos para controlar
-    // repetición (evitar loops tipo "!!!!!!!!"), y se estaban descartando.
-    // Sin esto, el modelo corre con los defaults crudos de NIM, más propenso
-    // a colapsar en repetición bajo carga alta.
-    ...(top_p !== undefined ? { top_p } : {}),
-    ...(frequency_penalty !== undefined ? { frequency_penalty } : {}),
-    ...(presence_penalty !== undefined ? { presence_penalty } : {}),
-    ...(stop ? { stop } : {}),
     // ✅ Si el cliente no manda max_tokens (o manda 0 = "infinito" en JanitorAI),
     // no forzamos ningún límite — dejamos que NIM use su propio default.
     ...(max_tokens ? { max_tokens } : {}),
