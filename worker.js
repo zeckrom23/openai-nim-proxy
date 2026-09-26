@@ -19,7 +19,7 @@ const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 // rotando las 4 keys y agotándolas todas → 524 en TODOS los modelos grandes.
 // 25s es punto medio: suficiente para prefill normal de modelos grandes,
 // sin volver a los 60s que comían un minuto entero por key atascada real.
-const HEADER_TIMEOUT_MS = 60000;
+const HEADER_TIMEOUT_MS = 25000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
