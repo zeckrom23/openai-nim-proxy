@@ -206,7 +206,7 @@ async function collectStream(nimResponse) {
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
   const body = await request.json();
-  const { model, messages, temperature, max_tokens, stream } = body;
+  const { model, messages, temperature, max_tokens, stream, frequency_penalty, presence_penalty, repetition_penalty } = body;
   const clientWantsStream = stream === true;
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
@@ -217,6 +217,13 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
+    // ✅ Reenviamos los sliders de "repetición" de JanitorAI — sin esto tus
+    // valores de Rep./Freq. penalty nunca llegaban a NIM, por eso no hacían
+    // nada contra el loop de "!!!!". A propósito NO reenviamos top_p: kimi-k3
+    // lo trae fijo en 0.95 y truena (400) si mandas otro valor.
+    ...(frequency_penalty !== undefined ? { frequency_penalty } : {}),
+    ...(presence_penalty !== undefined ? { presence_penalty } : {}),
+    ...(repetition_penalty !== undefined ? { repetition_penalty } : {}),
     // ✅ Si el cliente no manda max_tokens (o manda 0 = "infinito" en JanitorAI),
     // no forzamos ningún límite — dejamos que NIM use su propio default.
     ...(max_tokens ? { max_tokens } : {}),
