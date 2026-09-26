@@ -19,7 +19,7 @@ const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 // rotando las 4 keys y agotándolas todas → 524 en TODOS los modelos grandes.
 // 25s es punto medio: suficiente para prefill normal de modelos grandes,
 // sin volver a los 60s que comían un minuto entero por key atascada real.
-const HEADER_TIMEOUT_MS = 60000;
+const HEADER_TIMEOUT_MS = 25000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
 const THINKING_BUDGET = 0;
@@ -293,6 +293,42 @@ async function handleChatCompletions(request, env) {
     return jsonResponse({
       error: { message: `Error de red: ${err.message}`, type: 'network_error', code: 503 }
     }, 503);
+  }
+
+  // ✅ Auto-retry: algunos modelos (ej. kimi-k3) traen ciertos parámetros
+  // (top_p, frequency_penalty, etc.) fijos e inmutables, y varían cuál según
+  // el modelo. En vez de mantener una lista a mano por modelo, detectamos el
+  // error "X is immutable" de NIM, quitamos ese campo, y reintentamos —hasta
+  // 5 veces por si el modelo se queja de varios parámetros uno por uno.
+  let immutableRetries = 0;
+  while (!nimResponse.ok && immutableRetries < 5) {
+    const errText = await nimResponse.clone().text();
+    const match = errText.match(/`(\w+)`\s+is immutable/i);
+    if (!match) break;
+    const badField = match[1];
+    console.warn(`NIM dice que '${badField}' es inmutable para este modelo — quitando y reintentando`);
+    delete nimRequest[badField];
+    immutableRetries++;
+    try {
+      nimResponse = await fetchNIMWithRotation(
+        `${NIM_API_BASE}/chat/completions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(nimRequest)
+        },
+        apiKeys
+      );
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return jsonResponse({
+          error: { message: 'NIM no respondió a tiempo tras reintentar sin parámetros inmutables.', type: 'timeout_error', code: 524 }
+        }, 524);
+      }
+      return jsonResponse({
+        error: { message: `Error de red: ${err.message}`, type: 'network_error', code: 503 }
+      }, 503);
+    }
   }
 
   if (!nimResponse.ok) {
