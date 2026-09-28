@@ -53,10 +53,9 @@ const MINIMAX_MODELS = [
 // para reactivarlos rápido cuando salga algo nuevo o quiera probar otro.
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
-  // ✅ v4-pro-0813 se deprecó y aún no existe v4.1-pro (DeepSeek confirmó que
-  // sigue en desarrollo, sin fecha). Mientras tanto DeepSeek está redirigiendo
-  // TODAS las peticiones a "Pro" hacia v4.1-flash por detrás — así que apuntamos
-  // gpt-4o directo ahí también, en vez de a un Pro que ya no existe.
+  // ✅ deepseek-v4-pro-0813 no aparece en el /v1/models de tu cuenta de NIM y
+  // v4.1-pro aún no sale (sin fecha), así que gpt-4o apunta a v4.1-flash igual
+  // que gpt-4. Si algún día aparece v4.1-pro en tu lista, se separa.
   'gpt-4o':             'deepseek-ai/deepseek-v4.1-flash',
   'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
   // 🔥 Writer & Kimi - Bueno para roleplay
@@ -64,9 +63,10 @@ const MODEL_MAPPING = {
   // /v1/models) — lo cambié por palmyra-creative, hecho para escritura creativa.
   'gpt-4o-mini':        'writer/palmyra-creative-122b',
   'claude-3-opus':      'moonshotai/kimi-k3',
-  // ✅ kimi-k2-instruct-0905 no existe en tu cuenta, pero kimi-k2.6 sí — este
-  // es tu Kimi ligero real, confirmado en /v1/models.
-  'claude-3-sonnet':    'moonshotai/kimi-k2.6',
+  // ❌ kimi-k2.6 aparece en /v1/models pero la cuenta no lo tiene aprovisionado
+  // (404 "Function not found for account"), así que claude-3-sonnet apunta a
+  // Mistral Large 2 — sí está en la lista de tu cuenta y no repite modelo.
+  'claude-3-sonnet':    'mistralai/mistral-large-2-instruct',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
@@ -467,7 +467,7 @@ export default {
       return jsonResponse({
         object: 'list',
         data: Object.keys(MODEL_MAPPING).map(id => ({
-          id, object: 'model', created: Date.now(), owned_by: 'nvidia-nim-proxy'
+          id, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim-proxy'
         }))
       });
     }
