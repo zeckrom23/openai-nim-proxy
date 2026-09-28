@@ -497,3 +497,4 @@ async function handleTestModels(request, env) {
 }
 
 // ─────────────────────────────────────────
+// ENTRY POINT
