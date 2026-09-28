@@ -13,12 +13,9 @@ const ENABLE_THINKING_MODE = false;
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 
 // ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
-// ✅ FIX v2: 10s resultó DEMASIADO agresivo — modelos grandes (kimi-k3 2.8T,
-// glm-5.3) normalmente tardan 10+ segundos en TTFB por su tamaño, nada que
-// ver con estar atascados. Con 10s se estaban abortando conexiones sanas,
-// rotando las 4 keys y agotándolas todas → 524 en TODOS los modelos grandes.
-// 25s es punto medio: suficiente para prefill normal de modelos grandes,
-// sin volver a los 60s que comían un minuto entero por key atascada real.
+// 60s a propósito: varios modelos se quedan "pensando" antes de soltar la
+// primera respuesta y con timeouts menores (10s, 25s) se cortaban a veces.
+// Ojo: si una key se atora de verdad, tarda hasta 60s en rotar a la siguiente.
 const HEADER_TIMEOUT_MS = 60000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
@@ -441,47 +438,63 @@ async function handleChatCompletions(request, env) {
 }
 
 // ─────────────────────────────────────────
-// ENTRY POINT
+// 🧪 PRUEBA DE MODELOS — GET /test-models
+// Prueba varios modelos a la vez con tus keys (del lado del servidor, no se
+// exponen). Uso: /test-models (lista por defecto) o /test-models?models=a/b,c/d
+// ✅ = sirve · ❌ "no aprovisionado" = sale en /v1/models pero tu cuenta no lo
+// puede llamar. Ruta aparte: no toca /v1/chat/completions. Bórrala si ya no la usas.
 // ─────────────────────────────────────────
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders() });
-    }
-    if (url.pathname === '/health' && request.method === 'GET') {
-      return jsonResponse({
-        status: 'ok',
-        service: 'OpenAI to NVIDIA NIM Proxy',
-        reasoning_display: SHOW_REASONING,
-        thinking_mode_default: ENABLE_THINKING_MODE,
-        thinking_budget: THINKING_BUDGET,
-        default_model: DEFAULT_MODEL,
-        total_models: Object.keys(MODEL_MAPPING).length,
-        header_timeout_ms: HEADER_TIMEOUT_MS,
-        keepalive_interval_ms: KEEPALIVE_INTERVAL_MS,
-        api_keys_configured: ['NIM_API_KEY', 'NIM_API_KEY_1', 'NIM_API_KEY_2', 'NIM_API_KEY_3']
-      });
-    }
-    if (url.pathname === '/v1/models' && request.method === 'GET') {
-      return jsonResponse({
-        object: 'list',
-        data: Object.keys(MODEL_MAPPING).map(id => ({
-          id, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim-proxy'
-        }))
-      });
-    }
-    if (url.pathname === '/v1/chat/completions' && request.method === 'POST') {
-      try {
-        return await handleChatCompletions(request, env);
-      } catch (err) {
-        return jsonResponse({
-          error: { message: err.message || 'Internal server error', type: 'invalid_request_error', code: 500 }
-        }, 500);
-      }
-    }
-    return jsonResponse({
-      error: { message: `Endpoint ${url.pathname} not found`, type: 'invalid_request_error', code: 404 }
-    }, 404);
+const TEST_CANDIDATES = [
+  'google/gemma-4-31b-it',
+  'nvidia/nemotron-3-super-120b-a12b',
+  'meta/muse-glimmer-30b',
+  'writer/palmyra-creative-122b',
+  'openai/gpt-oss-20b',
+  'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'nvidia/nemotron-3-ultra-550b-a55b',
+  'nvidia/nemotron-nano-3-30b-a3b',
+  'deepseek-ai/deepseek-v4.1-pro', // aún no sale; cuando dé ✅ ya está en tu cuenta
+];
+
+async function handleTestModels(request, env) {
+  const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
+  const custom = new URL(request.url).searchParams.get('models');
+  const models = (custom ? custom.split(',').map(m => m.trim()).filter(Boolean) : TEST_CANDIDATES).slice(0, 15);
+  const apiKeys = getApiKeys(env);
+  if (apiKeys.length === 0) {
+    return jsonResponse({ error: { message: 'No API keys configured', code: 401 } }, 401);
   }
-};
+  const key = apiKeys[0];
+
+  const lines = await Promise.all(models.map(async (m) => {
+    const start = Date.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    try {
+      const res = await fetch(`${NIM_API_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ model: m, messages: [{ role: 'user', content: 'hola' }], max_tokens: 20, stream: false }),
+        signal: controller.signal
+      });
+      const text = await res.text();
+      const secs = ((Date.now() - start) / 1000).toFixed(1);
+      if (res.ok) return `✅ ${m} (${secs}s)`;
+      if (res.status === 404 && /Not found for account/i.test(text)) return `❌ ${m} — no aprovisionado en tu cuenta`;
+      if (res.status === 404) return `❌ ${m} — 404 no existe`;
+      if (res.status === 429) return `⚠️ ${m} — 429 saturado (sí existe)`;
+      return `⚠️ ${m} — ${res.status}: ${text.slice(0, 120)}`;
+    } catch (err) {
+      return err.name === 'AbortError' ? `❌ ${m} — sin respuesta en 45s` : `❌ ${m} — error de red: ${err.message}`;
+    } finally {
+      clearTimeout(timer);
+    }
+  }));
+
+  return new Response(lines.join('\n'), {
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', ...corsHeaders() }
+  });
+}
+
+// ─────────────────────────────────────────
+// ENTRY POINT
