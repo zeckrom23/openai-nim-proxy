@@ -13,12 +13,9 @@ const ENABLE_THINKING_MODE = false;
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 
 // ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
-// ✅ FIX v2: 10s resultó DEMASIADO agresivo — modelos grandes (kimi-k3 2.8T,
-// glm-5.3) normalmente tardan 10+ segundos en TTFB por su tamaño, nada que
-// ver con estar atascados. Con 10s se estaban abortando conexiones sanas,
-// rotando las 4 keys y agotándolas todas → 524 en TODOS los modelos grandes.
-// 25s es punto medio: suficiente para prefill normal de modelos grandes,
-// sin volver a los 60s que comían un minuto entero por key atascada real.
+// 60s a propósito: varios modelos se quedan "pensando" antes de soltar la
+// primera respuesta y con timeouts menores (10s, 25s) se cortaban a veces.
+// Ojo: si una key se atora de verdad, tarda hasta 60s en rotar a la siguiente.
 const HEADER_TIMEOUT_MS = 60000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
@@ -41,6 +38,13 @@ const NEMOTRON_MODELS = [
   'nvidia/nvidia-nemotron-nano-9b-v2',
 ];
 
+// 🧠 Modelos GLM (z-ai) — usan enable_thinking/clear_thinking, NO "thinking"
+// como el resto. Confirmado en la ficha oficial de NVIDIA para GLM en NIM.
+const GLM_MODELS = [
+  'z-ai/glm-5.3',
+  'z-ai/glm-5.3-flash',
+];
+
 // 🧠 Modelos MiniMax / gpt-oss que necesitan chat_template_kwargs directo (no en extra_body)
 const MINIMAX_MODELS = [
   'minimaxai/minimax-m3',
@@ -53,10 +57,9 @@ const MINIMAX_MODELS = [
 // para reactivarlos rápido cuando salga algo nuevo o quiera probar otro.
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
-  // ✅ v4-pro-0813 se deprecó y aún no existe v4.1-pro (DeepSeek confirmó que
-  // sigue en desarrollo, sin fecha). Mientras tanto DeepSeek está redirigiendo
-  // TODAS las peticiones a "Pro" hacia v4.1-flash por detrás — así que apuntamos
-  // gpt-4o directo ahí también, en vez de a un Pro que ya no existe.
+  // ✅ deepseek-v4-pro-0813 no aparece en el /v1/models de tu cuenta de NIM y
+  // v4.1-pro aún no sale (sin fecha), así que gpt-4o apunta a v4.1-flash igual
+  // que gpt-4. Si algún día aparece v4.1-pro en tu lista, se separa.
   'gpt-4o':             'deepseek-ai/deepseek-v4.1-flash',
   'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
   // 🔥 Writer & Kimi - Bueno para roleplay
@@ -64,14 +67,15 @@ const MODEL_MAPPING = {
   // /v1/models) — lo cambié por palmyra-creative, hecho para escritura creativa.
   'gpt-4o-mini':        'writer/palmyra-creative-122b',
   'claude-3-opus':      'moonshotai/kimi-k3',
-  // ✅ kimi-k2-instruct-0905 no existe en tu cuenta, pero kimi-k2.6 sí — este
-  // es tu Kimi ligero real, confirmado en /v1/models.
-  'claude-3-sonnet':    'databricks/dbrx-instruct',
+  // ❌ kimi-k2.6 aparece en /v1/models pero la cuenta no lo tiene aprovisionado
+  // (404 "Function not found for account"), así que claude-3-sonnet apunta a
+  // Mistral Large 2 — sí está en la lista de tu cuenta y no repite modelo.
+  'claude-3-sonnet':    'mistralai/mistral-large-2-instruct',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
   // 🔥 NEMOTRON LIGHTNING - El más rápido del catálogo, buen respaldo si otros se saturan
-  'o3-mini':            'nvidia/llama-3.1-nemotron-70b-instruct',
+  'o3-mini':            'nvidia/nemotron-3.5-lightning-30b-a3b',
 
   // ── Sin usar por ahora, descomenta para activar ──
   // 🔥 MISTRAL - Parcialmente censurado pero estable
@@ -212,6 +216,7 @@ async function handleChatCompletions(request, env) {
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
   const isNemotronModel = NEMOTRON_MODELS.includes(nimModel);
   const isMinimaxModel = MINIMAX_MODELS.includes(nimModel);
+  const isGlmModel = GLM_MODELS.includes(nimModel);
 
   const nimRequest = {
     model: nimModel,
@@ -235,6 +240,12 @@ async function handleChatCompletions(request, env) {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (isMinimaxModel) {
     nimRequest.chat_template_kwargs = { thinking_mode: 'disabled' };
+  } else if (isGlmModel) {
+    // ✅ GLM no usa "thinking" como el resto — usa enable_thinking/clear_thinking.
+    // Con la clave equivocada, GLM la ignora y corre con thinking prendido por
+    // default, generando de más y tardándose un montón (esto explica el
+    // "se tarda un hueva en JanitorAI vs <30s en el Playground de NVIDIA").
+    nimRequest.chat_template_kwargs = { enable_thinking: false, clear_thinking: false };
   } else if (isNemotronModel) {
     // ✅ Nemotron: directo en la raíz para evitar error 400 por extra_body
     nimRequest.chat_template_kwargs = {
@@ -467,7 +478,7 @@ export default {
       return jsonResponse({
         object: 'list',
         data: Object.keys(MODEL_MAPPING).map(id => ({
-          id, object: 'model', created: Date.now(), owned_by: 'nvidia-nim-proxy'
+          id, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim-proxy'
         }))
       });
     }
