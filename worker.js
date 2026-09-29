@@ -66,7 +66,7 @@ const MODEL_MAPPING = {
   'claude-3-opus':      'moonshotai/kimi-k3',
   // ✅ kimi-k2-instruct-0905 no existe en tu cuenta, pero kimi-k2.6 sí — este
   // es tu Kimi ligero real, confirmado en /v1/models.
-  'claude-3-sonnet':    'moonshotai/kimi-k2.6',
+  'claude-3-sonnet':    '01-ai/yi-large',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
