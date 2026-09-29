@@ -66,12 +66,12 @@ const MODEL_MAPPING = {
   'claude-3-opus':      'moonshotai/kimi-k3',
   // ✅ kimi-k2-instruct-0905 no existe en tu cuenta, pero kimi-k2.6 sí — este
   // es tu Kimi ligero real, confirmado en /v1/models.
-  'claude-3-sonnet':    '01-ai/yi-large',
+  'claude-3-sonnet':    'ai21labs/jamba-1.5-large-instruct',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
   // 🔥 NEMOTRON LIGHTNING - El más rápido del catálogo, buen respaldo si otros se saturan
-  'o3-mini':            'nvidia/nemotron-3.5-lightning-30b-a3b',
+  'o3-mini':            'nvidia/llama-3.1-nemotron-70b-instruct',
 
   // ── Sin usar por ahora, descomenta para activar ──
   // 🔥 MISTRAL - Parcialmente censurado pero estable
