@@ -1,6 +1,6 @@
 // worker.js - OpenAI to NVIDIA NIM API Proxy (Cloudflare Workers)
 // ✅ Anti-524 edition — streaming forzado, timeouts, rotación de keys en 429, keepalive
-// ✅ v2 — fallback global para apagar "thinking mode" en modelos no listados (fix de latencia)
+// ✅ v2.1 — Parámetros limpios sin conflicto de validación/inmutabilidad en Kimi/DeepSeek
 
 // 🔥 REASONING DISPLAY TOGGLE
 const SHOW_REASONING = false;
@@ -9,13 +9,9 @@ const SHOW_REASONING = false;
 const ENABLE_THINKING_MODE = false;
 
 // 🔥 DEFAULT FALLBACK MODEL
-// ✅ Actualizado: deepseek-v4-flash-0731 se deprecó, ahora usa el sucesor v4.1
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 
 // ⏱️ TIMEOUT en ms para esperar headers de NIM (no es timeout total, solo TTFB)
-// 60s a propósito: varios modelos se quedan "pensando" antes de soltar la
-// primera respuesta y con timeouts menores (10s, 25s) se cortaban a veces.
-// Ojo: si una key se atora de verdad, tarda hasta 60s en rotar a la siguiente.
 const HEADER_TIMEOUT_MS = 60000;
 
 // 🧠 THINKING BUDGET — 0 = sin thinking (más rápido para roleplay)
@@ -30,7 +26,7 @@ const THINKING_MODELS = [
   'qwen/qwen3-next-80b-a3b-thinking',
 ];
 
-// 🧠 Modelos Nemotron que necesitan chat_template_kwargs directo en la raíz (NO en extra_body)
+// 🧠 Modelos Nemotron que necesitan chat_template_kwargs directo en la raíz
 const NEMOTRON_MODELS = [
   'nvidia/nemotron-3.5-lightning-30b-a3b',
   'nvidia/nemotron-3-ultra-550b-a55b',
@@ -38,58 +34,33 @@ const NEMOTRON_MODELS = [
   'nvidia/nvidia-nemotron-nano-9b-v2',
 ];
 
-// 🧠 Modelos GLM (z-ai) — usan enable_thinking/clear_thinking, NO "thinking"
-// como el resto. Confirmado en la ficha oficial de NVIDIA para GLM en NIM.
+// 🧠 Modelos GLM (z-ai) — usan enable_thinking/clear_thinking
 const GLM_MODELS = [
   'z-ai/glm-5.3',
   'z-ai/glm-5.3-flash',
 ];
 
-// 🧠 Modelos MiniMax / gpt-oss que necesitan chat_template_kwargs directo (no en extra_body)
+// 🧠 Modelos MiniMax / gpt-oss que necesitan chat_template_kwargs directo
 const MINIMAX_MODELS = [
   'minimaxai/minimax-m3',
   'minimaxai/minimax-m2.7',
   'openai/gpt-oss-20b',
 ];
 
-// Model mapping - Updated August 2026
-// ✅ Solo los modelos que uso activamente. Los demás quedan comentados abajo
-// para reactivarlos rápido cuando salga algo nuevo o quiera probar otro.
+// Model mapping - Updated 2026
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
-  // ✅ deepseek-v4-pro-0813 no aparece en el /v1/models de tu cuenta de NIM y
-  // v4.1-pro aún no sale (sin fecha), así que gpt-4o apunta a v4.1-flash igual
-  // que gpt-4. Si algún día aparece v4.1-pro en tu lista, se separa.
   'gpt-4o':             'deepseek-ai/deepseek-v4.1-flash',
   'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
   // 🔥 Writer & Kimi - Bueno para roleplay
-  // ❌ minimaxai/minimax-m3 NO existe en tu cuenta de NIM (confirmado con
-  // /v1/models) — lo cambié por palmyra-creative, hecho para escritura creativa.
   'gpt-4o-mini':        'writer/palmyra-creative-122b',
   'claude-3-opus':      'moonshotai/kimi-k3',
-  // ❌ kimi-k2.6 aparece en /v1/models pero la cuenta no lo tiene aprovisionado
-  // (404 "Function not found for account"), así que claude-3-sonnet apunta a
-  // Mistral Large 2 — sí está en la lista de tu cuenta y no repite modelo.
   'claude-3-sonnet':    'mistralai/mistral-large-2-instruct',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
-  // 🔥 NEMOTRON LIGHTNING - El más rápido del catálogo, buen respaldo si otros se saturan
+  // 🔥 NEMOTRON LIGHTNING
   'o3-mini':            'nvidia/nemotron-3.5-lightning-30b-a3b',
-
-  // ── Sin usar por ahora, descomenta para activar ──
-  // 🔥 MISTRAL - Parcialmente censurado pero estable
-  // 'o1-preview':         'mistralai/mistral-large-3-675b-instruct-2512',
-  // 🔥 QWEN - Variedad, MoE grandes
-  // 'claude-3-haiku':     'qwen/qwen3.5-122b-a10b',
-  // 🔥 NEMOTRON ULTRA - El monstruo de 550B
-  // 'o3':                 'nvidia/nemotron-3-ultra-550b-a55b',
-  // 'o4-mini':            'nvidia/nemotron-3-super-120b-a12b',
-  // 🔥 LLAMA 4 + SEED
-  // 'gemini-ultra':       'meta/llama-4-maverick-17b-128e-instruct',
-  // 'gemini-pro':         'bytedance/seed-oss-36b-instruct',
-  // 🔥 GEMMA 4 - Google
-  // 'gemini-flash':       'google/gemma-4-31b-it',
 };
 
 // ─────────────────────────────────────────
@@ -129,7 +100,7 @@ function getApiKeys(env) {
   return keys;
 }
 
-// ✅ Fetch con rotación de keys en 429 (timeout solo cubre espera de headers/TTFB)
+// ✅ Fetch con rotación de keys en 429
 async function fetchNIMWithRotation(url, options, apiKeys) {
   let lastStatus = null;
   let lastError = null;
@@ -177,7 +148,7 @@ async function fetchNIMWithRotation(url, options, apiKeys) {
   throw lastError || new Error('All API keys failed');
 }
 
-// ✅ Consume el stream internamente y devuelve el contenido completo (para clientes non-stream)
+// ✅ Consume el stream internamente y devuelve el contenido completo
 async function collectStream(nimResponse) {
   const decoder = new TextDecoder();
   const reader = nimResponse.body.getReader();
@@ -210,7 +181,9 @@ async function collectStream(nimResponse) {
 async function handleChatCompletions(request, env) {
   const NIM_API_BASE = env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
   const body = await request.json();
-  const { model, messages, temperature, max_tokens, stream, frequency_penalty, presence_penalty, repetition_penalty } = body;
+  
+  // ✅ Extraemos solo los parámetros necesarios (ignoramos penalizaciones problemáticas)
+  const { model, messages, temperature, max_tokens, stream } = body;
   const clientWantsStream = stream === true;
   const nimModel = resolveModel(model);
   const isThinkingModel = THINKING_MODELS.includes(nimModel);
@@ -222,16 +195,9 @@ async function handleChatCompletions(request, env) {
     model: nimModel,
     messages,
     temperature: temperature || 0.6,
-    // ✅ Reenviamos los sliders de "repetición" de JanitorAI — sin esto tus
-    // valores de Rep./Freq. penalty nunca llegaban a NIM, por eso no hacían
-    // nada contra el loop de "!!!!". A propósito NO reenviamos top_p: kimi-k3
-    // lo trae fijo en 0.95 y truena (400) si mandas otro valor.
-    ...(frequency_penalty !== undefined ? { frequency_penalty } : {}),
-    ...(presence_penalty !== undefined ? { presence_penalty } : {}),
-    ...(repetition_penalty !== undefined ? { repetition_penalty } : {}),
-    // ✅ Si el cliente no manda max_tokens (o manda 0 = "infinito" en JanitorAI),
-    // no forzamos ningún límite — dejamos que NIM use su propio default.
-    ...(max_tokens ? { max_tokens } : {}),
+    // ✅ Solo enviamos max_tokens si es un número válido mayor a 0.
+    // Si JanitorAI envía 0 (ilimitado), no se incluye para dejar que NIM use su propio default.
+    ...(max_tokens && max_tokens > 0 ? { max_tokens } : {}),
     stream: true,
   };
 
@@ -241,35 +207,17 @@ async function handleChatCompletions(request, env) {
   if (isMinimaxModel) {
     nimRequest.chat_template_kwargs = { thinking_mode: 'disabled' };
   } else if (isGlmModel) {
-    // ✅ GLM no usa "thinking" como el resto — usa enable_thinking/clear_thinking.
-    // Con la clave equivocada, GLM la ignora y corre con thinking prendido por
-    // default, generando de más y tardándose un montón (esto explica el
-    // "se tarda un hueva en JanitorAI vs <30s en el Playground de NVIDIA").
     nimRequest.chat_template_kwargs = { enable_thinking: false, clear_thinking: false };
   } else if (isNemotronModel) {
-    // ✅ Nemotron: directo en la raíz para evitar error 400 por extra_body
     nimRequest.chat_template_kwargs = {
       thinking: THINKING_BUDGET > 0,
       budget_tokens: THINKING_BUDGET
     };
   } else if (isThinkingModel) {
-    // ✅ FIX: `extra_body` NO es un campo real de la REST API de NIM — es una
-    // convención del SDK de Python/Node de OpenAI que el cliente desempaqueta
-    // antes de mandar el request. Como aquí armamos el JSON a mano, hay que
-    // mandar chat_template_kwargs directo en la raíz (igual que Nemotron/Minimax),
-    // si no NIM lo rechaza con 400 "Unsupported parameter(s): extra_body".
     nimRequest.chat_template_kwargs = { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET };
   } else if (ENABLE_THINKING_MODE) {
     nimRequest.chat_template_kwargs = { thinking: true };
   } else {
-    // ✅ FIX: antes, cualquier modelo fuera de las 3 listas (deepseek-v4, glm-5.3,
-    // qwen3.5, mistral, llama-4, gemma-4...) no recibía NINGÚN chat_template_kwargs,
-    // así que corría con el default del servidor — que en varias familias viene
-    // con "thinking" prendido de fábrica. Eso hace que el modelo genere tokens de
-    // razonamiento completos (lento) que luego se descartan porque SHOW_REASONING
-    // es false. Mandamos thinking:false como default seguro, directo en la raíz
-    // (no en extra_body — ver nota arriba). Si el modelo no reconoce la clave,
-    // el chat template normalmente la ignora sin romper el request.
     nimRequest.chat_template_kwargs = { thinking: false };
   }
 
@@ -306,18 +254,15 @@ async function handleChatCompletions(request, env) {
     }, 503);
   }
 
-  // ✅ Auto-retry: algunos modelos (ej. kimi-k3) traen ciertos parámetros
-  // (top_p, frequency_penalty, etc.) fijos e inmutables, y varían cuál según
-  // el modelo. En vez de mantener una lista a mano por modelo, detectamos el
-  // error "X is immutable" de NIM, quitamos ese campo, y reintentamos —hasta
-  // 5 veces por si el modelo se queja de varios parámetros uno por uno.
+  // ✅ Auto-retry mejorado: captura errores de inmutabilidad y de validación
   let immutableRetries = 0;
   while (!nimResponse.ok && immutableRetries < 5) {
     const errText = await nimResponse.clone().text();
-    const match = errText.match(/`(\w+)`\s+is immutable/i);
+    const match = errText.match(/`(\w+)`\s+(?:is immutable|is fixed at)/i) || 
+                  errText.match(/Validation:\s*`(\w+)`/i);
     if (!match) break;
     const badField = match[1];
-    console.warn(`NIM dice que '${badField}' es inmutable para este modelo — quitando y reintentando`);
+    console.warn(`NIM se quejó del parámetro '${badField}' — quitando y reintentando`);
     delete nimRequest[badField];
     immutableRetries++;
     try {
@@ -364,7 +309,6 @@ async function handleChatCompletions(request, env) {
       async start(controller) {
         let buffer = '';
         let reasoningStarted = false;
-        // 💓 Keepalive — manda comentarios SSE invisibles para evitar 524
         const keepalive = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(': keepalive\n\n'));
