@@ -60,7 +60,7 @@ const MODEL_MAPPING = {
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
   // 🔥 NEMOTRON LIGHTNING
-  'o3-mini':            'nvidia/nemotron-3.5-lightning-30b-a3b',
+  'o3-mini':            'mistralai/mixtral-8x22b-v0.1',
 };
 
 // ─────────────────────────────────────────
