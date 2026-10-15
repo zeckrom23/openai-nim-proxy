@@ -60,7 +60,7 @@ const MODEL_MAPPING = {
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
   // 🔥 NEMOTRON LIGHTNING
-  'o3-mini':            'mistralai/mistral-large',
+  'o3-mini':            'deepseek-ai/deepseek-coder-6.7b-instruct',
 };
 
 // ─────────────────────────────────────────
