@@ -55,7 +55,7 @@ const MODEL_MAPPING = {
   // 🔥 Writer & Kimi - Bueno para roleplay
   'gpt-4o-mini':        'stepfun-ai/step-5-preview',
   'claude-3-opus':      'moonshotai/kimi-k3',
-  'claude-3-sonnet':    'mistralai/mistral-large-2-instruct',
+  'claude-3-sonnet':    'nvidia/nemotron-3-ultra-550b-a55b',
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
