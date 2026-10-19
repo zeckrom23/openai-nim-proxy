@@ -59,7 +59,7 @@ const MODEL_MAPPING = {
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
-  'o3':                 'openai/gpt-oss-20b',
+  'o3':                 'stepfun-ai/step-5-preview',
   'o3-mini':            'nvidia/nemotron-3.5-super-vl-120b-a12b',
 };
 
