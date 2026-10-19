@@ -47,6 +47,11 @@ const MINIMAX_MODELS = [
   'openai/gpt-oss-20b',
 ];
 
+// 🧠 Modelos StepFun — necesitan control de thinking con budget_tokens
+const STEPFUN_MODELS = [
+  'stepfun-ai/step-5-preview',
+];
+
 // Model mapping - Updated 2026
 const MODEL_MAPPING = {
   // 🔥 DEEPSEEK V4 - Mejor para roleplay NSFW
@@ -190,6 +195,7 @@ async function handleChatCompletions(request, env) {
   const isNemotronModel = NEMOTRON_MODELS.includes(nimModel);
   const isMinimaxModel = MINIMAX_MODELS.includes(nimModel);
   const isGlmModel = GLM_MODELS.includes(nimModel);
+  const isStepfunModel = STEPFUN_MODELS.includes(nimModel);
 
   const nimRequest = {
     model: nimModel,
@@ -208,6 +214,8 @@ async function handleChatCompletions(request, env) {
     nimRequest.chat_template_kwargs = { thinking_mode: 'disabled' };
   } else if (isGlmModel) {
     nimRequest.chat_template_kwargs = { enable_thinking: false, clear_thinking: false };
+  } else if (isStepfunModel) {
+    nimRequest.chat_template_kwargs = { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET };
   } else if (isNemotronModel) {
     nimRequest.chat_template_kwargs = {
       thinking: THINKING_BUDGET > 0,
