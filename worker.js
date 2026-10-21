@@ -59,7 +59,7 @@ const MODEL_MAPPING = {
   'gpt-4':              'deepseek-ai/deepseek-v4.1-flash',
   // 🔥 Writer & Kimi - Bueno para roleplay
   'gpt-4o-mini':        'google/gemma-4-31b-it',
-  'gpt-4-mini':         'google/gemma-3-12b-it',
+  'gpt-4-mini':         'meta/llama-3.2-90b-vision-instruct',
   'claude-3-opus':      'moonshotai/kimi-k3',
   'claude-3-sonnet':    'nvidia/nemotron-3-ultra-550b-a55b',
   // 🔥 Respaldos
