@@ -216,7 +216,7 @@ async function handleChatCompletions(request, env) {
   } else if (isGlmModel) {
     nimRequest.chat_template_kwargs = { enable_thinking: false, clear_thinking: false };
   } else if (isStepfunModel) {
-    nimRequest.chat_template_kwargs = { thinking: THINKING_BUDGET > 0, budget_tokens: THINKING_BUDGET };
+    nimRequest.chat_template_kwargs = { enable_thinking: false, thinking: false };
   } else if (isNemotronModel) {
     nimRequest.chat_template_kwargs = {
       thinking: THINKING_BUDGET > 0,
