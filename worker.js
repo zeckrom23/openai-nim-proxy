@@ -44,6 +44,7 @@ const GLM_MODELS = [
 const MINIMAX_MODELS = [
   'minimaxai/minimax-m3',
   'minimaxai/minimax-m2.7',
+  'minimaxai/minimax-m3.1-flash',
   'openai/gpt-oss-20b',
 ];
 
