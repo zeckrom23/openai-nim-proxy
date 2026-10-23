@@ -65,7 +65,7 @@ const MODEL_MAPPING = {
   // 🔥 Respaldos
   'o1':                 'z-ai/glm-5.3',
   'o1-mini':            'z-ai/glm-5.3-flash',
-  'o3':                 'meta/muse-glimmer-30b',
+  'o3':                 'minimaxai/minimax-m3.1-flash',
   'o3-mini':            'nvidia/nemotron-3.5-super-vl-120b-a12b',
 };
 
