@@ -213,7 +213,7 @@ async function handleChatCompletions(request, env) {
   // Configuración de chat_template_kwargs por familia
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (isMinimaxModel) {
-    nimRequest.chat_template_kwargs = { thinking_mode: 'enabled' };
+    nimRequest.chat_template_kwargs = { thinking_mode: 'disabled' };
   } else if (isGlmModel) {
     nimRequest.chat_template_kwargs = { enable_thinking: false, clear_thinking: false };
   } else if (isStepfunModel) {
